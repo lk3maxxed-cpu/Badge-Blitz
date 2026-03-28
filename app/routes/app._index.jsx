@@ -1499,7 +1499,15 @@ function MyBadgeCard({ badge, previewImage, fetcher }) {
             <div style={{ position: "absolute", bottom: "15%", left: "50%", transform: "translateX(-50%)", width: "55%", height: "60%", background: "#e3e3e3", borderRadius: 6 }} />
           </>
         )}
-        <span style={badgeStyle}>{badge.label}</span>
+        {badge.shape === "BAR" && badge.scrollingEnabled ? (
+          <div style={{ ...badgeStyle, overflow: "hidden" }}>
+            <span style={{ display: "inline-block", whiteSpace: "nowrap", animation: `bb-marquee ${badge.scrollSpeed || 20}s linear infinite` }}>
+              {(() => { const seg = badge.label + "\u00a0\u00a0·\u00a0\u00a0"; return seg.repeat(16); })()}
+            </span>
+          </div>
+        ) : (
+          <span style={badgeStyle}>{badge.label}</span>
+        )}
         {!badge.active && (
           <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.55)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: "#888", background: "#fff", padding: "3px 10px", borderRadius: 99, border: "1px solid #ddd" }}>Inactive</span>
