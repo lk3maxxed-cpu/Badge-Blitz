@@ -2,7 +2,7 @@
 // Badge Blitz — Main Dashboard
 
 import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
-import { useFetcher, useLoaderData } from "react-router";
+import { useFetcher, useLoaderData, useNavigate } from "react-router";
 import {
   Page,
   Layout,
@@ -693,6 +693,7 @@ function buildBadgeStyle({ color, textColor, shape, edgeStyle, size, px, py, gra
 }
 
 function CustomBadgeBuilder({ disabled, previewImage, onImageChange }) {
+  const navigate = useNavigate();
   const [label, setLabel] = useState("My Badge");
   const [color, setColor] = useState("#000000");
   const [textColor, setTextColor] = useState("#FFFFFF");
@@ -1376,8 +1377,9 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange }) {
 
           {/* CTA */}
           <div style={{ marginTop: 4 }}>
-            <a
-              href={disabled ? undefined : `/app/badges/new?${ctaParams}`}
+            <button
+              disabled={disabled}
+              onClick={() => navigate(`/app/badges/new?${ctaParams}`)}
               style={{
                 display: "inline-block",
                 background: disabled ? "#333" : "#fff",
@@ -1386,13 +1388,13 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange }) {
                 fontSize: 13,
                 padding: "10px 20px",
                 borderRadius: 0,
-                textDecoration: "none",
-                pointerEvents: disabled ? "none" : "auto",
+                border: "none",
+                cursor: disabled ? "not-allowed" : "pointer",
                 letterSpacing: "0.2px",
               }}
             >
               Create custom badge
-            </a>
+            </button>
           </div>
         </div>
       </div>
