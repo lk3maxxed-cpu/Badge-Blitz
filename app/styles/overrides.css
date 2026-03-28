@@ -1,0 +1,48 @@
+/* Badge Blitz — Global UI Overrides */
+
+/* Page title: black rectangle with white text */
+.Polaris-Header-Title__Title,
+.Polaris-Header-Title h1 {
+  display: inline-block !important;
+  background: #000 !important;
+  color: #fff !important;
+  padding: 4px 14px !important;
+  border-radius: 0 !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.3px !important;
+}
+
+/* All Polaris buttons: black background, white text, zero border radius */
+.Polaris-Button {
+  background: #000 !important;
+  color: #fff !important;
+  border-color: #000 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.Polaris-Button:hover,
+.Polaris-Button:focus,
+.Polaris-Button:active {
+  background: #222 !important;
+  color: #fff !important;
+  border-color: #222 !important;
+  box-shadow: none !important;
+  outline: 2px solid #000 !important;
+  outline-offset: 2px !important;
+}
+
+/* Ensure button text/icon children inherit white color */
+.Polaris-Button .Polaris-Button__Text,
+.Polaris-Button .Polaris-Icon {
+  color: #fff !important;
+}
+
+/* Disabled state */
+.Polaris-Button[disabled],
+.Polaris-Button--disabled {
+  background: #666 !important;
+  color: #aaa !important;
+  border-color: #666 !important;
+  cursor: not-allowed !important;
+}

@@ -1,0 +1,21 @@
+{% comment %} Badge Blitz — App Embed Block {% endcomment %}
+{% comment %}
+  This block is enabled store-wide in Customize > App embeds.
+  It injects badge overlays onto product cards across the storefront.
+{% endcomment %}
+
+{{ 'badge-blitz.css' | asset_url | stylesheet_tag }}
+
+<script>
+  window.BadgeBlitzShop = {{ shop.permanent_domain | json }};
+  window.BadgeBlitzApiUrl = {{ app.url | json }};
+</script>
+
+{{ 'badge-blitz.js' | asset_url | script_tag }}
+
+{% schema %}
+{
+  "name": "Badge Blitz",
+  "target": "body"
+}
+{% endschema %}

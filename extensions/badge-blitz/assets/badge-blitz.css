@@ -1,0 +1,90 @@
+/* Badge Blitz — Storefront Badge Styles */
+
+.badge-blitz-badge {
+  position: absolute;
+  z-index: 10;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  line-height: 1;
+  pointer-events: none;
+  white-space: nowrap;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Shapes */
+.badge-blitz-badge[data-shape="PILL"] {
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.badge-blitz-badge[data-shape="SQUARE"] {
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.badge-blitz-badge[data-shape="CIRCLE"] {
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  aspect-ratio: 1;
+  /* padding set inline by JS based on font size so text always fits */
+}
+
+.badge-blitz-badge[data-shape="RIBBON"] {
+  padding: 4px 12px 4px 8px;
+  border-radius: 0 4px 4px 0;
+  left: 0 !important;
+}
+
+/* Corner Pop — anchored to a corner, pops (scales) on card hover */
+.badge-blitz-badge[data-shape="CORNER_POP"] {
+  white-space: nowrap;
+  /* transition set inline by JS so opacity duration is configurable */
+}
+
+/* Full-width bar */
+.badge-blitz-badge[data-shape="BAR"] {
+  position: absolute;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  overflow: hidden;
+  text-align: center;
+  z-index: 2;
+}
+
+/* Scrolling marquee inner text */
+@keyframes badge-blitz-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+.badge-blitz-bar__scroll {
+  display: inline-block;
+  white-space: nowrap;
+  animation: badge-blitz-marquee var(--bb-scroll-duration, 20s) linear infinite;
+}
+
+/* Positions */
+.badge-blitz-badge[data-position="TOP_LEFT"] {
+  top: 8px;
+  left: 8px;
+}
+
+.badge-blitz-badge[data-position="TOP_RIGHT"] {
+  top: 8px;
+  right: 8px;
+}
+
+.badge-blitz-badge[data-position="BOTTOM_LEFT"] {
+  bottom: 8px;
+  left: 8px;
+}
+
+.badge-blitz-badge[data-position="BOTTOM_RIGHT"] {
+  bottom: 8px;
+  right: 8px;
+}

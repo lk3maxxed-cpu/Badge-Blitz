@@ -1,0 +1,90 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")       // pooled connection — used by the app at runtime
+  directUrl = env("DIRECT_URL")         // direct connection — used by prisma migrate only
+}
+
+// ── Shopify session (required by @shopify/shopify-app-remix) ──
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+// ── Badge Blitz models ────────────────────────────────────────
+
+model Shop {
+  id          String    @id @default(cuid())
+  shopDomain  String    @unique
+  plan        String    @default("FREE")
+  planStarted DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  badges      Badge[]
+}
+
+model Badge {
+  id         String   @id @default(cuid())
+  shopId     String
+  shop       Shop     @relation(fields: [shopId], references: [id])
+
+  type       String
+  label      String
+  color      String   @default("#FF4136")
+  textColor  String   @default("#FFFFFF")
+  shape      String   @default("PILL")
+  position   String   @default("TOP_LEFT")
+
+  autoDiscount   Boolean @default(false)
+  stockThreshold Int?    @default(5)
+
+  targetType String  @default("ALL")
+  targetIds  String?
+
+  syncedTargetIds String? // auto-populated by inventory sync for LOW_STOCK badges
+
+  size      Int    @default(12)           // font size in px
+  edgeStyle String @default("SMOOTH")    // SMOOTH | RIDGED (circles only)
+  positionX Float? // % from left; overrides position enum when set
+  positionY Float? // % from top;  overrides position enum when set
+
+  gradientEnabled   Boolean @default(false)
+  gradientColorEnd  String? // second colour for linear gradient
+  gradientDirection String  @default("to right") // CSS gradient direction
+
+  hoverOnly     Boolean @default(false) // badge hidden until product card is hovered
+  hoverDuration Int     @default(300)   // fade-in duration in ms (100–1000)
+
+  scrollingEnabled Boolean @default(false) // BAR: animate text as infinite marquee
+  scrollSpeed      Int     @default(20)    // BAR: marquee cycle duration in seconds (5–60; lower = faster)
+
+  active   Boolean @default(true)
+  priority Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId])
+  @@index([shopId, active, priority])
+}

@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Badge Blitz — Launch Checklist</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 13px;
+      color: #111;
+      background: #fff;
+      padding: 48px 56px;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 36px;
+      padding-bottom: 24px;
+      border-bottom: 2px solid #111;
+    }
+    .header-left h1 {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+    .header-left p {
+      font-size: 12px;
+      color: #666;
+    }
+    .header-right {
+      text-align: right;
+    }
+    .header-right .date-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #999;
+      margin-bottom: 4px;
+    }
+    .header-right .date-value {
+      font-size: 13px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    /* ── Progress bar ── */
+    .progress-section {
+      margin-bottom: 32px;
+    }
+    .progress-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #999;
+      margin-bottom: 8px;
+    }
+    .progress-bar-bg {
+      height: 6px;
+      background: #f0f0f0;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: #111;
+      border-radius: 99px;
+      transition: width 0.3s ease;
+    }
+    .progress-count {
+      margin-top: 6px;
+      font-size: 11px;
+      color: #999;
+    }
+    #progress-count-text { font-weight: 700; color: #111; }
+
+    /* ── Phase blocks ── */
+    .phase {
+      margin-bottom: 32px;
+    }
+    .phase-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #e5e5e5;
+    }
+    .phase-pill {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 99px;
+      white-space: nowrap;
+    }
+    .phase-pill.red    { background: #fff0f0; color: #c0392b; border: 1px solid #f5c6c6; }
+    .phase-pill.yellow { background: #fffbea; color: #b45309; border: 1px solid #fde68a; }
+    .phase-pill.green  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+
+    .phase-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #111;
+    }
+    .phase-subtitle {
+      font-size: 11px;
+      color: #888;
+      margin-left: auto;
+      white-space: nowrap;
+    }
+
+    /* ── Task rows ── */
+    .task {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 7px;
+      margin-bottom: 4px;
+      cursor: pointer;
+      transition: background 0.1s ease;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .task:hover { background: #f9f9f9; }
+    .task.checked { background: #f9fafb; }
+    .task.checked .task-title { text-decoration: line-through; color: #aaa; }
+    .task.checked .task-meta  { color: #ccc; }
+    .task.checked .task-file  { color: #ccc; }
+
+    .task-checkbox {
+      flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      border: 2px solid #ccc;
+      border-radius: 4px;
+      margin-top: 1px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.1s ease;
+      background: #fff;
+    }
+    .task.checked .task-checkbox {
+      background: #111;
+      border-color: #111;
+    }
+    .task-checkbox svg {
+      display: none;
+    }
+    .task.checked .task-checkbox svg {
+      display: block;
+    }
+
+    .task-body { flex: 1; }
+    .task-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #111;
+      line-height: 1.35;
+      margin-bottom: 2px;
+    }
+    .task-meta {
+      font-size: 11px;
+      color: #777;
+      line-height: 1.5;
+    }
+    .task-file {
+      display: inline-block;
+      font-size: 10px;
+      font-family: "SF Mono", "Fira Code", Consolas, monospace;
+      background: #f3f3f3;
+      color: #555;
+      padding: 1px 6px;
+      border-radius: 3px;
+      margin-top: 4px;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #e5e5e5;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .footer p { font-size: 11px; color: #bbb; }
+    .print-btn {
+      background: #111;
+      color: #fff;
+      border: none;
+      padding: 9px 20px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.2px;
+    }
+    .print-btn:hover { background: #333; }
+
+    /* ── Print styles ── */
+    @media print {
+      body { padding: 32px 40px; }
+      .print-btn { display: none; }
+      .task:hover { background: transparent; }
+      .phase { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <h1>Badge Blitz — Launch Checklist</h1>
+      <p>Shopify App Deployment · Based on full codebase audit · March 2026</p>
+    </div>
+    <div class="header-right">
+      <div class="date-label">Audited</div>
+      <div class="date-value">March 27, 2026</div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-section">
+    <div class="progress-label">Overall Progress</div>
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-bar"></div></div>
+    <div class="progress-count"><span id="progress-count-text">0 / 22</span> tasks complete</div>
+  </div>
+
+  <!-- ───────────────────────────────────────────────── -->
+  <!-- PHASE 1: HARD BLOCKERS                           -->
+  <!-- ───────────────────────────────────────────────── -->
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-pill red">Week 1</span>
+      <span class="phase-title">Hard Blockers — Must fix before any real merchant install</span>
+      <span class="phase-subtitle">7 tasks</span>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Swap SQLite for PostgreSQL</div>
+        <div class="task-meta">Change the Prisma datasource provider to "postgresql" and replace the hardcoded file path with <code>env("DATABASE_URL")</code>. Provision a real database (Railway, Supabase, Neon, etc.) and run <code>prisma migrate deploy</code>.</div>
+        <span class="task-file">prisma/schema.prisma · line 10</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Register a production app in the Shopify Partner Dashboard</div>
+        <div class="task-meta">Create a new app (or promote the dev app) to get a real client ID and secret. Set the app URL to your production domain. This is separate from the dev tunnel.</div>
+        <span class="task-file">partners.shopify.com</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Update shopify.app.toml with production domain and real client ID</div>
+        <div class="task-meta">Replace <code>application_url = "https://localhost"</code> with your actual deployed domain. Replace the hardcoded Cloudflare tunnel redirect URLs. Update <code>client_id</code> with the production value.</div>
+        <span class="task-file">shopify.app.toml · lines 1–3, 30–32</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Fix Dockerfile to use DATABASE_URL instead of embedded SQLite</div>
+        <div class="task-meta">The container currently bakes in the SQLite file, so the database is wiped on every restart. Pass <code>DATABASE_URL</code> as an environment variable at runtime and remove any static DB file from the image.</div>
+        <span class="task-file">Dockerfile · line 16</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Hard-fail at startup if SHOPIFY_API_SECRET is missing</div>
+        <div class="task-meta">Currently falls back to an empty string, so webhook HMAC validation silently passes junk. Add a startup check: <code>if (!process.env.SHOPIFY_API_SECRET) throw new Error('SHOPIFY_API_SECRET required')</code>.</div>
+        <span class="task-file">app/shopify.server.js · line 12</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Add badge edit route and UI</div>
+        <div class="task-meta">There is no way for a merchant to edit an existing badge — only create or toggle. Build a <code>/app/badges/:id/edit</code> route (or re-use <code>app.badges.new.jsx</code> with prefilled data) and add an Edit button to the badge table.</div>
+        <span class="task-file">app/routes/app.badges.new.jsx · app/routes/app._index.jsx</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Fix uninstall webhook to delete shop and badge data (GDPR)</div>
+        <div class="task-meta">Currently only the session is deleted on uninstall. Shopify's data protection requirements mandate that merchant data is fully removed. Cascade-delete the Shop record (which will cascade to Badges via the relation).</div>
+        <span class="task-file">app/routes/webhooks.app.uninstalled.jsx · line 12</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────────────────────── -->
+  <!-- PHASE 2: SHOULD FIX                              -->
+  <!-- ───────────────────────────────────────────────── -->
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-pill yellow">Week 2</span>
+      <span class="phase-title">High Priority — Fix before App Store submission</span>
+      <span class="phase-subtitle">10 tasks</span>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Create a .env.example file documenting all required environment variables</div>
+        <div class="task-meta">Required vars: <code>SHOPIFY_API_KEY</code>, <code>SHOPIFY_API_SECRET</code>, <code>SHOPIFY_APP_URL</code>, <code>SCOPES</code>, <code>DATABASE_URL</code>, <code>NODE_ENV</code>. Without this, anyone deploying the app is guessing.</div>
+        <span class="task-file">.env.example (new file)</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Add badge delete functionality</div>
+        <div class="task-meta">Badges can only be toggled inactive, never permanently removed. Add a DELETE action and a "Delete" button to the badge list. The database will grow indefinitely otherwise.</div>
+        <span class="task-file">app/routes/app._index.jsx · badge table rows</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Rate-limit the /api/badges public endpoint</div>
+        <div class="task-meta">This endpoint is unauthenticated and publicly accessible by design (storefront theme needs it), but has zero rate limiting. Add IP-based rate limiting (e.g., 60 req/min) to prevent abuse.</div>
+        <span class="task-file">app/routes/api.badges.jsx</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Restrict CORS on /api/badges from * to *.myshopify.com</div>
+        <div class="task-meta">Currently <code>Access-Control-Allow-Origin: *</code> allows any website to call your badge API. Tighten this to only Shopify store domains.</div>
+        <span class="task-file">app/routes/api.badges.jsx · line 7</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Fix theme extension: replace deprecated app.url Liquid variable</div>
+        <div class="task-meta"><code>window.BadgeBlitzApiUrl = {{ app.url | json }}</code> uses an unreliable Liquid object that may be undefined on some themes. Replace with a static URL set via the extension schema settings or a data attribute.</div>
+        <span class="task-file">extensions/badge-blitz/blocks/app-embed.liquid · line 11</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Add a request timeout to the storefront badge fetch</div>
+        <div class="task-meta">The JS file uses XMLHttpRequest with no timeout. If your API is slow or down, the storefront hangs indefinitely. Add a 5–8 second timeout and fail gracefully (no badges, no broken layout).</div>
+        <span class="task-file">extensions/badge-blitz/assets/badge-blitz.js · lines 37–52</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Replace placeholder copy on login and landing pages</div>
+        <div class="task-meta">Both pages still contain Shopify boilerplate template text ("[your app]", "A short heading about [your app]"). Shopify will reject the app listing if these remain. Write real copy for Badge Blitz.</div>
+        <span class="task-file">app/routes/auth.login/route.jsx · app/routes/_index/route.jsx</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Add query indexes to the Badge model</div>
+        <div class="task-meta">Add a <code>@@index([shopId])</code> on Badge (every dashboard query filters by shop) and a <code>@@index([shopId, active, priority])</code> composite index for the public API sort. Will matter at scale.</div>
+        <span class="task-file">prisma/schema.prisma · Badge model</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Add a health check endpoint</div>
+        <div class="task-meta">Container orchestrators (Railway, Render, Fly.io, etc.) need a <code>GET /health</code> route that returns 200 if the app and database are reachable. Without it, failed deploys won't be detected automatically.</div>
+        <span class="task-file">app/routes/health.jsx (new file)</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Fix inventory sync memory issue for large stores</div>
+        <div class="task-meta">The sync helper loads every product into a single in-memory array. Stores with 10k+ products will cause OOM crashes. Refactor to paginate per badge or use a streaming approach.</div>
+        <span class="task-file">app/lib/inventory.server.js</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────────────────────── -->
+  <!-- PHASE 3: POST-LAUNCH                             -->
+  <!-- ───────────────────────────────────────────────── -->
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-pill green">Post-Launch</span>
+      <span class="phase-title">Nice to Have — Stability and growth</span>
+      <span class="phase-subtitle">5 tasks</span>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Add error monitoring (Sentry or equivalent)</div>
+        <div class="task-meta">Drop in Sentry with 3 lines of code. Without it, you'll find out about production crashes only from angry merchants. Sentry's free tier is more than enough to start.</div>
+        <span class="task-file">app/root.jsx or entry.server.jsx</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Add rate limiting to the inventory sync webhook</div>
+        <div class="task-meta">High-volume stores trigger <code>inventory_levels/update</code> dozens of times per minute. Without debouncing or a queue, this hammers your database. Add a per-shop cooldown or use a background job queue.</div>
+        <span class="task-file">app/routes/webhooks.inventory_levels.update.jsx</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Remove or replace the "Additional page" boilerplate route</div>
+        <div class="task-meta"><code>app/routes/app.additional.jsx</code> is leftover Shopify CLI scaffolding with no real content. Either delete it or replace it with something useful (e.g., billing/upgrade page, analytics).</div>
+        <span class="task-file">app/routes/app.additional.jsx</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Add caching layer for /api/badges (Redis or CDN edge)</div>
+        <div class="task-meta">The public badge API currently hits your database on every storefront page load for every visitor. At scale this becomes expensive. Add Redis caching or put a CDN in front with a 60–120 second TTL.</div>
+        <span class="task-file">app/routes/api.badges.jsx</span>
+      </div>
+    </div>
+
+    <div class="task" onclick="toggle(this)">
+      <div class="task-checkbox"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="task-body">
+        <div class="task-title">Write a billing/upgrade route for the Pro plan</div>
+        <div class="task-meta">The free plan gate exists and the "Upgrade to Pro" CTA links to <code>/app/upgrade</code>, but that route doesn't exist yet. Implement Shopify's App Subscription API to handle Pro plan billing.</div>
+        <span class="task-file">app/routes/app.upgrade.jsx (new file)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <p>Badge Blitz · Deployment Audit · March 2026 · 22 tasks total</p>
+    <button class="print-btn" onclick="window.print()">Save as PDF</button>
+  </div>
+
+  <script>
+    const TOTAL = 22;
+
+    function toggle(el) {
+      el.classList.toggle('checked');
+      updateProgress();
+    }
+
+    function updateProgress() {
+      const checked = document.querySelectorAll('.task.checked').length;
+      const pct = Math.round((checked / TOTAL) * 100);
+      document.getElementById('progress-bar').style.width = pct + '%';
+      document.getElementById('progress-count-text').textContent = checked + ' / ' + TOTAL;
+    }
+
+    updateProgress();
+  </script>
+</body>
+</html>

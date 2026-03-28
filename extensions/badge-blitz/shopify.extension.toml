@@ -1,0 +1,7 @@
+api_version = "2026-04"
+
+[[extensions]]
+uid = "86fc0778-a9dd-715e-0846-a6675c2c69544ed3fb6a"
+type = "theme"
+name = "Badge Blitz"
+handle = "badge-blitz"
