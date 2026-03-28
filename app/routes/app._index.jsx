@@ -6,15 +6,12 @@ import { useFetcher, useLoaderData } from "react-router";
 import {
   Page,
   Layout,
-  Card,
   Button,
   BlockStack,
   InlineStack,
   InlineGrid,
   Text,
-  Badge,
   Banner,
-  DataTable,
   Divider,
   Box,
 } from "@shopify/polaris";
@@ -49,16 +46,19 @@ export async function loader({ request }) {
 
 // ── Action ──────────────────────────────────────────────────
 export async function action({ request }) {
-  const { session } = await authenticate.admin(request);
+  await authenticate.admin(request);
   const formData = await request.formData();
+  const intent = formData.get("intent");
   const badgeId = formData.get("badgeId");
+
+  if (intent === "delete") {
+    await db.badge.delete({ where: { id: badgeId } });
+    return data({ success: true });
+  }
+
+  // default: toggle active
   const active = formData.get("active") === "true";
-
-  await db.badge.update({
-    where: { id: badgeId },
-    data: { active },
-  });
-
+  await db.badge.update({ where: { id: badgeId }, data: { active } });
   return data({ success: true });
 }
 
@@ -1505,6 +1505,121 @@ function BadgePreviewCard({ template, disabled, previewImage }) {
   );
 }
 
+// ── MyBadgeCard ───────────────────────────────────────────────
+function MyBadgeCard({ badge, previewImage, fetcher }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const isDeleting =
+    fetcher.state !== "idle" &&
+    fetcher.formData?.get("badgeId") === badge.id &&
+    fetcher.formData?.get("intent") === "delete";
+
+  const bg = badge.gradientEnabled && badge.gradientColorEnd
+    ? `linear-gradient(${badge.gradientDirection}, ${badge.color}, ${badge.gradientColorEnd})`
+    : badge.color;
+
+  const badgeStyle = badge.shape === "BAR" ? {
+    position: "absolute",
+    left: 0, right: 0, width: "100%",
+    top: badge.position?.includes("BOTTOM") ? "auto" : 0,
+    bottom: badge.position?.includes("BOTTOM") ? 0 : "auto",
+    background: bg, color: badge.textColor,
+    fontSize: badge.size || 11, fontWeight: 700,
+    padding: "5px 8px", textAlign: "center",
+    letterSpacing: "0.4px",
+  } : {
+    position: "absolute",
+    top: badge.positionY != null ? `${badge.positionY}%` : (badge.position?.includes("BOTTOM") ? "auto" : 10),
+    bottom: badge.positionY != null ? "auto" : (badge.position?.includes("BOTTOM") ? 10 : "auto"),
+    left: badge.positionX != null ? `${badge.positionX}%` : (badge.position?.includes("RIGHT") ? "auto" : badge.shape === "RIBBON" ? 0 : 10),
+    right: badge.positionX != null ? "auto" : (badge.position?.includes("RIGHT") ? 10 : "auto"),
+    transform: badge.positionX != null ? "translate(-50%, -50%)" : "none",
+    background: bg, color: badge.textColor,
+    fontSize: badge.size || 11, fontWeight: 700,
+    letterSpacing: "0.4px", lineHeight: 1, whiteSpace: "nowrap",
+    padding: badge.shape === "PILL" ? "4px 10px" : badge.shape === "CIRCLE" ? "0" : badge.shape === "RIBBON" ? "4px 12px 4px 8px" : "4px 8px",
+    borderRadius: badge.shape === "PILL" ? 999 : badge.shape === "CIRCLE" ? "50%" : badge.shape === "SQUARE" ? 4 : badge.shape === "RIBBON" ? "0 4px 4px 0" : 0,
+    width: badge.shape === "CIRCLE" ? 36 : "auto",
+    height: badge.shape === "CIRCLE" ? 36 : "auto",
+    display: badge.shape === "CIRCLE" ? "flex" : "block",
+    alignItems: badge.shape === "CIRCLE" ? "center" : "unset",
+    justifyContent: badge.shape === "CIRCLE" ? "center" : "unset",
+    textAlign: badge.shape === "CIRCLE" ? "center" : "unset",
+  };
+
+  return (
+    <div style={{
+      border: "1px solid #e1e3e5", borderRadius: 12, overflow: "hidden",
+      background: "#fff", display: "flex", flexDirection: "column",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.08)",
+      opacity: isDeleting ? 0.4 : 1, transition: "opacity 0.2s ease",
+    }}>
+      {/* Product mockup */}
+      <div style={{ position: "relative", aspectRatio: "1 / 1", background: "#f6f6f7", overflow: "hidden" }}>
+        {previewImage ? (
+          <img src={previewImage} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+        ) : (
+          <>
+            <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(135deg,#efefef 0px,#efefef 1px,#f6f6f7 1px,#f6f6f7 24px)" }} />
+            <div style={{ position: "absolute", bottom: "15%", left: "50%", transform: "translateX(-50%)", width: "55%", height: "60%", background: "#e3e3e3", borderRadius: 6 }} />
+          </>
+        )}
+        <span style={badgeStyle}>{badge.label}</span>
+        {!badge.active && (
+          <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.55)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#888", background: "#fff", padding: "3px 10px", borderRadius: 99, border: "1px solid #ddd" }}>Inactive</span>
+          </div>
+        )}
+      </div>
+
+      {/* Info + actions */}
+      <div style={{ padding: "12px 14px 14px", flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ height: 9, background: "#e1e3e5", borderRadius: 4, width: "70%" }} />
+        <div style={{ height: 9, background: "#e1e3e5", borderRadius: 4, width: "40%", marginBottom: 6 }} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Text variant="headingSm">{badge.label}</Text>
+          <span style={{
+            fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 99,
+            background: badge.active ? "#f0fdf4" : "#f4f4f5",
+            color: badge.active ? "#15803d" : "#888",
+            border: `1px solid ${badge.active ? "#bbf7d0" : "#e4e4e7"}`,
+          }}>
+            {badge.active ? "Active" : "Inactive"}
+          </span>
+        </div>
+        <div style={{ fontSize: 11, color: "#999", marginBottom: 4 }}>
+          {badge.type.replace(/_/g, " ")} · {badge.shape.replace(/_/g, " ")}
+        </div>
+
+        <div style={{ display: "flex", gap: 6, marginTop: "auto", paddingTop: 8, flexWrap: "wrap" }}>
+          <Button size="slim" url={`/app/badges/${badge.id}/edit`}>Edit</Button>
+          <Button
+            size="slim"
+            onClick={() => fetcher.submit(
+              { intent: "toggle", badgeId: badge.id, active: String(!badge.active) },
+              { method: "post" }
+            )}
+          >
+            {badge.active ? "Deactivate" : "Activate"}
+          </Button>
+          {confirmDelete ? (
+            <InlineStack gap="100">
+              <Button size="slim" tone="critical"
+                onClick={() => fetcher.submit({ intent: "delete", badgeId: badge.id }, { method: "post" })}
+              >
+                Confirm
+              </Button>
+              <Button size="slim" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+            </InlineStack>
+          ) : (
+            <Button size="slim" tone="critical" onClick={() => setConfirmDelete(true)}>Delete</Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Dashboard ────────────────────────────────────────────────
 export default function Dashboard() {
   const { shop, plan, badges, badgeCount } = useLoaderData();
@@ -1515,26 +1630,6 @@ export default function Dashboard() {
   const atLimit = !isPro && badgeCount >= 3;
   const isSyncing = syncFetcher.state !== "idle";
   const syncResult = syncFetcher.data;
-
-  const rows = badges.map((badge) => [
-    badge.label,
-    badge.type.replace(/_/g, " "),
-    badge.position.replace(/_/g, " "),
-    <Badge tone={badge.active ? "success" : "disabled"}>
-      {badge.active ? "Active" : "Inactive"}
-    </Badge>,
-    <Button
-      size="slim"
-      onClick={() => {
-        fetcher.submit(
-          { badgeId: badge.id, active: String(!badge.active) },
-          { method: "post" }
-        );
-      }}
-    >
-      {badge.active ? "Deactivate" : "Activate"}
-    </Button>,
-  ]);
 
   return (
     <Page
@@ -1669,27 +1764,27 @@ export default function Dashboard() {
           </div>
         </Layout.Section>
 
-        {/* Active badges list — only shown once merchant has badges */}
+        {/* My Badges gallery */}
         {badges.length > 0 && (
           <Layout.Section>
-            <BlockStack gap="400">
-              <Divider />
-              <InlineStack align="space-between" blockAlign="center">
-                <BlockStack gap="100">
-                  <Text variant="headingMd">Your Badges</Text>
-                  <Text tone="subdued">
-                    {badgeCount} active · {isPro ? "Unlimited" : `${badgeCount}/3 free`}
-                  </Text>
-                </BlockStack>
-              </InlineStack>
-              <Card padding="0">
-                <DataTable
-                  columnContentTypes={["text", "text", "text", "text", "text"]}
-                  headings={["Label", "Type", "Position", "Status", "Action"]}
-                  rows={rows}
-                />
-              </Card>
-            </BlockStack>
+            <div id="my-badges">
+              <BlockStack gap="400">
+                <Divider />
+                <InlineStack align="space-between" blockAlign="center">
+                  <BlockStack gap="100">
+                    <Text variant="headingLg">Your Badges</Text>
+                    <Text tone="subdued">
+                      {badgeCount} active · {isPro ? "Unlimited" : `${badgeCount}/3 free`} — Edit, toggle, or remove your saved badges.
+                    </Text>
+                  </BlockStack>
+                </InlineStack>
+                <InlineGrid columns={{ xs: 2, sm: 3, md: 3 }} gap="400">
+                  {badges.map((badge) => (
+                    <MyBadgeCard key={badge.id} badge={badge} previewImage={previewImage} fetcher={fetcher} />
+                  ))}
+                </InlineGrid>
+              </BlockStack>
+            </div>
           </Layout.Section>
         )}
 
