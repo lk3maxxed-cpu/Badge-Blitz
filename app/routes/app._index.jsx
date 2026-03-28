@@ -2,7 +2,7 @@
 // Badge Blitz — Main Dashboard
 
 import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
-import { useFetcher, useLoaderData, useNavigate } from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
 import {
   Page,
   Layout,
@@ -46,13 +46,54 @@ export async function loader({ request }) {
 
 // ── Action ──────────────────────────────────────────────────
 export async function action({ request }) {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
   const badgeId = formData.get("badgeId");
 
   if (intent === "delete") {
     await db.badge.delete({ where: { id: badgeId } });
+    return data({ success: true });
+  }
+
+  if (intent === "create") {
+    const { shop } = session;
+    let shopRecord = await db.shop.findUnique({ where: { shopDomain: shop } });
+    if (!shopRecord) {
+      shopRecord = await db.shop.create({ data: { shopDomain: shop, plan: "FREE" } });
+    }
+    const label = formData.get("label");
+    if (!label || !label.trim()) return data({ error: "Label is required." }, { status: 400 });
+    const px = formData.get("px");
+    const py = formData.get("py");
+    await db.badge.create({
+      data: {
+        shopId: shopRecord.id,
+        type: "CUSTOM",
+        label: label.trim(),
+        color: formData.get("color") || "#FF4136",
+        textColor: formData.get("textColor") || "#FFFFFF",
+        shape: formData.get("shape") || "PILL",
+        position: formData.get("position") || "TOP_LEFT",
+        size: parseInt(formData.get("size") || "12", 10),
+        edgeStyle: formData.get("edgeStyle") || "SMOOTH",
+        positionX: px ? parseFloat(px) : null,
+        positionY: py ? parseFloat(py) : null,
+        gradientEnabled: formData.get("gradientEnabled") === "true",
+        gradientColorEnd: formData.get("gradientColorEnd") || null,
+        gradientDirection: formData.get("gradientDirection") || "to right",
+        hoverOnly: formData.get("hoverOnly") === "true",
+        hoverDuration: parseInt(formData.get("hoverDuration") || "300", 10),
+        scrollingEnabled: formData.get("scrollingEnabled") === "true",
+        scrollSpeed: parseInt(formData.get("scrollSpeed") || "20", 10),
+        autoDiscount: false,
+        stockThreshold: 5,
+        targetType: "ALL",
+        targetIds: null,
+        priority: 0,
+        active: true,
+      },
+    });
     return data({ success: true });
   }
 
@@ -693,7 +734,7 @@ function buildBadgeStyle({ color, textColor, shape, edgeStyle, size, px, py, gra
 }
 
 function CustomBadgeBuilder({ disabled, previewImage, onImageChange }) {
-  const navigate = useNavigate();
+  const fetcher = useFetcher();
   const [label, setLabel] = useState("My Badge");
   const [color, setColor] = useState("#000000");
   const [textColor, setTextColor] = useState("#FFFFFF");
@@ -827,23 +868,6 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange }) {
     gradientEnabled, gradientColorEnd, gradientDirection,
     cpCorner,
     cpExpanded: shape !== "CORNER_POP" || previewHovered,
-  });
-
-  const ctaParams = new URLSearchParams({
-    label, color, textColor, shape, size,
-    edgeStyle: shape === "CIRCLE" ? edgeStyle : "SMOOTH",
-    ...(shape === "CORNER_POP"
-      ? { position: cpCorner }
-      : { px: pos.x.toFixed(1), py: pos.y.toFixed(1) }),
-    gradientEnabled: String(gradientEnabled),
-    gradientColorEnd,
-    gradientDirection,
-    hoverOnly: String(hoverOnly && !slideIn),
-    hoverDuration: String(hoverDuration),
-    slideIn: String(slideIn),
-    slideFrom,
-    scrollingEnabled: String(scrollingEnabled),
-    scrollSpeed: String(scrollSpeed),
   });
 
   // Computes overlay style for hover-based visibility (fade or slide)
@@ -1378,8 +1402,31 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange }) {
           {/* CTA */}
           <div style={{ marginTop: 4 }}>
             <button
-              disabled={disabled}
-              onClick={() => navigate(`/app/badges/new?${ctaParams}`)}
+              disabled={disabled || fetcher.state !== "idle"}
+              onClick={() => {
+                const fd = new FormData();
+                fd.append("intent", "create");
+                fd.append("label", label);
+                fd.append("color", color);
+                fd.append("textColor", textColor);
+                fd.append("shape", shape);
+                fd.append("size", String(size));
+                fd.append("edgeStyle", shape === "CIRCLE" ? edgeStyle : "SMOOTH");
+                if (shape === "CORNER_POP") {
+                  fd.append("position", cpCorner);
+                } else {
+                  fd.append("px", pos.x.toFixed(1));
+                  fd.append("py", pos.y.toFixed(1));
+                }
+                fd.append("gradientEnabled", String(gradientEnabled));
+                fd.append("gradientColorEnd", gradientColorEnd);
+                fd.append("gradientDirection", gradientDirection);
+                fd.append("hoverOnly", String(hoverOnly && !slideIn));
+                fd.append("hoverDuration", String(hoverDuration));
+                fd.append("scrollingEnabled", String(scrollingEnabled));
+                fd.append("scrollSpeed", String(scrollSpeed));
+                fetcher.submit(fd, { method: "post" });
+              }}
               style={{
                 display: "inline-block",
                 background: disabled ? "#333" : "#fff",
@@ -1393,7 +1440,7 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange }) {
                 letterSpacing: "0.2px",
               }}
             >
-              Create custom badge
+              {fetcher.state !== "idle" ? "Saving…" : "Create custom badge"}
             </button>
           </div>
         </div>
