@@ -11,7 +11,7 @@
   window.BadgeBlitzApiUrl = {{ app.url | json }};
 </script>
 
-{{ 'badge-blitz.js' | asset_url | script_tag }}
+<script src="{{ 'badge-blitz.js' | asset_url }}" defer></script>
 
 {% schema %}
 {
