@@ -40,7 +40,7 @@ export async function loader({ request }) {
     shop,
     plan: shopRecord.plan,
     badges,
-    badgeCount: badges.filter((b) => b.active).length,
+    badgeCount: badges.length,
   });
 }
 
@@ -88,8 +88,8 @@ export async function action({ request }) {
         scrollSpeed: parseInt(formData.get("scrollSpeed") || "20", 10),
         autoDiscount: false,
         stockThreshold: 5,
-        targetType: "ALL",
-        targetIds: null,
+        targetType: formData.get("targetType") || "ALL",
+        targetIds: formData.get("targetIds") || null,
         priority: 0,
         active: true,
       },
@@ -102,64 +102,6 @@ export async function action({ request }) {
   await db.badge.update({ where: { id: badgeId }, data: { active } });
   return data({ success: true });
 }
-
-// ── Badge template gallery data ──────────────────────────────
-const BADGE_TEMPLATES = [
-  {
-    title: "Sale",
-    description: "Auto-show on discounted products",
-    type: "SALE",
-    badge: { label: "Sale", color: "#E53E3E", textColor: "#fff", shape: "PILL", position: "TOP_LEFT" },
-  },
-  {
-    title: "New Arrival",
-    description: "Highlight your latest products",
-    type: "NEW_ARRIVAL",
-    badge: { label: "New", color: "#276749", textColor: "#fff", shape: "PILL", position: "TOP_RIGHT" },
-  },
-  {
-    title: "Low Stock",
-    description: "Create urgency when stock runs low",
-    type: "LOW_STOCK",
-    badge: { label: "Low Stock", color: "#C05621", textColor: "#fff", shape: "PILL", position: "BOTTOM_LEFT" },
-  },
-  {
-    title: "Sale Ribbon",
-    description: "Bold ribbon-style sale callout",
-    type: "SALE",
-    badge: { label: "Sale", color: "#9B2C2C", textColor: "#fff", shape: "RIBBON", position: "TOP_LEFT" },
-  },
-  {
-    title: "Best Seller",
-    description: "Show shoppers what's popular",
-    type: "CUSTOM",
-    badge: { label: "Best Seller", color: "#553C9A", textColor: "#fff", shape: "PILL", position: "TOP_LEFT" },
-  },
-  {
-    title: "Limited",
-    description: "Drive urgency on exclusive items",
-    type: "CUSTOM",
-    badge: { label: "Limited", color: "#2B6CB0", textColor: "#fff", shape: "SQUARE", position: "TOP_RIGHT" },
-  },
-  {
-    title: "Hot Deal",
-    description: "Promote your best value offers",
-    type: "CUSTOM",
-    badge: { label: "Hot Deal", color: "#B7791F", textColor: "#fff", shape: "PILL", position: "TOP_LEFT" },
-  },
-  {
-    title: "Staff Pick",
-    description: "Curated picks from your team",
-    type: "CUSTOM",
-    badge: { label: "Staff Pick", color: "#285E61", textColor: "#fff", shape: "PILL", position: "TOP_RIGHT" },
-  },
-  {
-    title: "% Off Circle",
-    description: "Eye-catching circular discount badge",
-    type: "SALE",
-    badge: { label: "20% Off", color: "#E53E3E", textColor: "#fff", shape: "CIRCLE", position: "TOP_LEFT" },
-  },
-];
 
 // ── ProductCardUpload ─────────────────────────────────────────
 function ProductCardUpload({ previewImage, onImageChange }) {
@@ -754,6 +696,8 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange }) {
   const [previewHovered, setPreviewHovered] = useState(false);
   const [scrollingEnabled, setScrollingEnabled] = useState(false);
   const [scrollSpeed, setScrollSpeed] = useState(20);
+  const [targetType, setTargetType] = useState("ALL");
+  const [targetIds, setTargetIds] = useState("");
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -1399,6 +1343,42 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange }) {
             )}
           </div>
 
+          {/* Targeting */}
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${t.border}` }}>
+            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>
+              Apply to
+            </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+              {chip(targetType === "ALL", () => setTargetType("ALL"), "All products")}
+              {chip(targetType === "SPECIFIC", () => setTargetType("SPECIFIC"), "Specific products")}
+            </div>
+            {targetType === "SPECIFIC" && (
+              <div>
+                <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
+                  Product IDs
+                </div>
+                <textarea
+                  value={targetIds}
+                  onChange={(e) => setTargetIds(e.target.value)}
+                  placeholder="Comma-separated Shopify product IDs&#10;e.g. 1234567890, 9876543210"
+                  rows={3}
+                  style={{
+                    width: "100%",
+                    background: t.inputBg,
+                    color: t.text,
+                    border: `1px solid ${t.border}`,
+                    borderRadius: 6,
+                    padding: "8px 10px",
+                    fontSize: 12,
+                    resize: "vertical",
+                    fontFamily: "monospace",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
           {/* CTA */}
           <div style={{ marginTop: 4 }}>
             <button
@@ -1425,6 +1405,8 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange }) {
                 fd.append("hoverDuration", String(hoverDuration));
                 fd.append("scrollingEnabled", String(scrollingEnabled));
                 fd.append("scrollSpeed", String(scrollSpeed));
+                fd.append("targetType", targetType);
+                fd.append("targetIds", targetIds);
                 fetcher.submit(fd, { method: "post" });
               }}
               style={{
@@ -1454,102 +1436,6 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange }) {
           onCancel={() => setRawImage(null)}
         />
       )}
-    </div>
-  );
-}
-
-// ── BadgePreviewCard ─────────────────────────────────────────
-function BadgePreviewCard({ template, disabled, previewImage }) {
-  const { badge } = template;
-
-  const badgeStyle = {
-    position: "absolute",
-    top: badge.position.includes("BOTTOM") ? "auto" : 10,
-    bottom: badge.position.includes("BOTTOM") ? 10 : "auto",
-    left: badge.position.includes("RIGHT") ? "auto" : badge.shape === "RIBBON" ? 0 : 10,
-    right: badge.position.includes("RIGHT") ? 10 : "auto",
-    backgroundColor: badge.color,
-    color: badge.textColor,
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: "0.4px",
-    lineHeight: 1,
-    whiteSpace: "nowrap",
-    padding:
-      badge.shape === "PILL"
-        ? "4px 10px"
-        : badge.shape === "CIRCLE"
-        ? "0"
-        : badge.shape === "RIBBON"
-        ? "4px 12px 4px 8px"
-        : "4px 8px",
-    borderRadius:
-      badge.shape === "PILL"
-        ? 999
-        : badge.shape === "CIRCLE"
-        ? "50%"
-        : badge.shape === "SQUARE"
-        ? 4
-        : "0 4px 4px 0",
-    width: badge.shape === "CIRCLE" ? 36 : "auto",
-    height: badge.shape === "CIRCLE" ? 36 : "auto",
-    display: badge.shape === "CIRCLE" ? "flex" : "block",
-    alignItems: badge.shape === "CIRCLE" ? "center" : "unset",
-    justifyContent: badge.shape === "CIRCLE" ? "center" : "unset",
-    textAlign: badge.shape === "CIRCLE" ? "center" : "unset",
-  };
-
-  return (
-    <div
-      style={{
-        border: "1px solid #e1e3e5",
-        borderRadius: 12,
-        overflow: "hidden",
-        background: "#fff",
-        display: "flex",
-        flexDirection: "column",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.08)",
-        transition: "box-shadow 0.15s ease, transform 0.15s ease",
-      }}
-    >
-      {/* Product card mockup */}
-      <div style={{ position: "relative", aspectRatio: "1 / 1", background: "#f6f6f7", overflow: "hidden" }}>
-        {previewImage && (
-          <img
-            src={previewImage}
-            alt=""
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center", pointerEvents: "none" }}
-          />
-        )}
-        {!previewImage && (
-          <>
-            <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(135deg, #efefef 0px, #efefef 1px, #f6f6f7 1px, #f6f6f7 24px)" }} />
-            <div style={{ position: "absolute", bottom: "15%", left: "50%", transform: "translateX(-50%)", width: "55%", height: "60%", background: "#e3e3e3", borderRadius: 6 }} />
-          </>
-        )}
-        <span style={badgeStyle}>{badge.label}</span>
-      </div>
-
-      {/* Card info & price lines */}
-      <div style={{ padding: "12px 14px 14px" }}>
-        <div style={{ height: 10, background: "#e1e3e5", borderRadius: 4, marginBottom: 6, width: "70%" }} />
-        <div style={{ height: 10, background: "#e1e3e5", borderRadius: 4, marginBottom: 14, width: "40%" }} />
-
-        <BlockStack gap="100">
-          <Text variant="headingSm">{template.title}</Text>
-          <Text tone="subdued" variant="bodySm">{template.description}</Text>
-        </BlockStack>
-
-        <div style={{ marginTop: 12 }}>
-          <Button
-            size="slim"
-            url={`/app/badges/new`}
-            disabled={disabled}
-          >
-            Create this badge
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }
@@ -1788,54 +1674,47 @@ export default function Dashboard() {
           </div>
         </Layout.Section>
 
-        {/* Badge gallery */}
-        <Layout.Section>
-          <div id="badge-gallery">
-            <BlockStack gap="400">
-              <BlockStack gap="100">
-                <Text variant="headingLg">What would you like to create?</Text>
-                <Text tone="subdued">
-                  Pick a badge style below to get started. Every badge appears directly on your product images — on collection pages, product pages, and search results.
-                </Text>
-              </BlockStack>
-
-              <InlineGrid columns={{ xs: 2, sm: 3, md: 3 }} gap="400">
-                {BADGE_TEMPLATES.map((template) => (
-                  <BadgePreviewCard
-                    key={template.title}
-                    template={template}
-                    disabled={atLimit}
-                    previewImage={previewImage}
-                  />
-                ))}
-              </InlineGrid>
-            </BlockStack>
-          </div>
-        </Layout.Section>
-
         {/* My Badges gallery */}
-        {badges.length > 0 && (
-          <Layout.Section>
-            <div id="my-badges">
-              <BlockStack gap="400">
-                <Divider />
-                <InlineStack align="space-between" blockAlign="center">
-                  <BlockStack gap="100">
-                    <Text variant="headingLg">Your Badges</Text>
-                    <Text tone="subdued">
-                      {badgeCount} active · {isPro ? "Unlimited" : `${badgeCount}/3 free`} — Edit, toggle, or remove your saved badges.
-                    </Text>
-                  </BlockStack>
-                </InlineStack>
+        <Layout.Section>
+          <div id="my-badges">
+            <BlockStack gap="400">
+              <Divider />
+              <InlineStack align="space-between" blockAlign="center">
+                <BlockStack gap="100">
+                  <Text variant="headingXl">My Badges</Text>
+                  <Text tone="subdued">
+                    {isPro
+                      ? `${badgeCount} badge${badgeCount !== 1 ? "s" : ""} — Unlimited plan`
+                      : `${badgeCount} / 3 free badges used`}
+                    {" "}— Use the builder above to create, then edit or delete here.
+                  </Text>
+                </BlockStack>
+                {!isPro && (
+                  <Button variant="primary" url="/app/upgrade" size="slim">Upgrade for unlimited</Button>
+                )}
+              </InlineStack>
+
+              {badges.length === 0 ? (
+                <div style={{
+                  border: "2px dashed #e1e3e5",
+                  borderRadius: 12,
+                  padding: "48px 24px",
+                  textAlign: "center",
+                  color: "#8c9196",
+                }}>
+                  <Text variant="headingMd" tone="subdued">No badges yet</Text>
+                  <Text tone="subdued" variant="bodySm">Configure your badge in the builder above and click "Create custom badge" to get started.</Text>
+                </div>
+              ) : (
                 <InlineGrid columns={{ xs: 2, sm: 3, md: 3 }} gap="400">
                   {badges.map((badge) => (
                     <MyBadgeCard key={badge.id} badge={badge} previewImage={previewImage} fetcher={fetcher} />
                   ))}
                 </InlineGrid>
-              </BlockStack>
-            </div>
-          </Layout.Section>
-        )}
+              )}
+            </BlockStack>
+          </div>
+        </Layout.Section>
 
         <Box minHeight="400px" />
       </Layout>
