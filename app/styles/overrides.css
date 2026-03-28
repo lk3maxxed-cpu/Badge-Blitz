@@ -1,5 +1,10 @@
 /* Badge Blitz — Global UI Overrides */
 
+@keyframes bb-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
 /* Page title: black rectangle with white text */
 .Polaris-Header-Title__Title,
 .Polaris-Header-Title h1 {
