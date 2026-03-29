@@ -97,6 +97,37 @@ export async function action({ request }) {
     return data({ success: true });
   }
 
+  if (intent === "update") {
+    const label = formData.get("label");
+    if (!label || !label.trim()) return data({ error: "Label is required." }, { status: 400 });
+    const px = formData.get("px");
+    const py = formData.get("py");
+    await db.badge.update({
+      where: { id: badgeId },
+      data: {
+        label: label.trim(),
+        color: formData.get("color") || "#FF4136",
+        textColor: formData.get("textColor") || "#FFFFFF",
+        shape: formData.get("shape") || "PILL",
+        position: formData.get("position") || "TOP_LEFT",
+        size: parseInt(formData.get("size") || "12", 10),
+        edgeStyle: formData.get("edgeStyle") || "SMOOTH",
+        positionX: px ? parseFloat(px) : null,
+        positionY: py ? parseFloat(py) : null,
+        gradientEnabled: formData.get("gradientEnabled") === "true",
+        gradientColorEnd: formData.get("gradientColorEnd") || null,
+        gradientDirection: formData.get("gradientDirection") || "to right",
+        hoverOnly: formData.get("hoverOnly") === "true",
+        hoverDuration: parseInt(formData.get("hoverDuration") || "300", 10),
+        scrollingEnabled: formData.get("scrollingEnabled") === "true",
+        scrollSpeed: parseInt(formData.get("scrollSpeed") || "20", 10),
+        targetType: formData.get("targetType") || "ALL",
+        targetIds: formData.get("targetIds") || null,
+      },
+    });
+    return data({ success: true });
+  }
+
   // default: toggle active
   const active = formData.get("active") === "true";
   await db.badge.update({ where: { id: badgeId }, data: { active } });
@@ -675,7 +706,7 @@ function buildBadgeStyle({ color, textColor, shape, edgeStyle, size, px, py, gra
   };
 }
 
-function CustomBadgeBuilder({ disabled, previewImage, onImageChange }) {
+function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadge, onEditDone }) {
   const fetcher = useFetcher();
   const [label, setLabel] = useState("My Badge");
   const [color, setColor] = useState("#000000");
@@ -702,6 +733,36 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange }) {
   const fileInputRef = useRef(null);
 
   const [rawImage, setRawImage] = useState(null);
+
+  // Populate builder state when an existing badge is loaded for editing
+  useEffect(() => {
+    if (!editingBadge) return;
+    setLabel(editingBadge.label || "My Badge");
+    setColor(editingBadge.color || "#000000");
+    setTextColor(editingBadge.textColor || "#FFFFFF");
+    setShape(editingBadge.shape || "PILL");
+    setSize(editingBadge.size || 12);
+    setEdgeStyle(editingBadge.edgeStyle || "SMOOTH");
+    setGradientEnabled(!!editingBadge.gradientEnabled);
+    setGradientColorEnd(editingBadge.gradientColorEnd || "#553C9A");
+    setGradientDirection(editingBadge.gradientDirection || "to right");
+    setHoverOnly(!!editingBadge.hoverOnly);
+    setHoverDuration(editingBadge.hoverDuration || 300);
+    setScrollingEnabled(!!editingBadge.scrollingEnabled);
+    setScrollSpeed(editingBadge.scrollSpeed || 20);
+    setTargetType(editingBadge.targetType || "ALL");
+    setTargetIds(editingBadge.targetIds || "");
+    if (editingBadge.positionX != null && editingBadge.positionY != null) {
+      setPos({ x: editingBadge.positionX, y: editingBadge.positionY });
+    } else {
+      const posMap = { TOP_LEFT: { x: 15, y: 15 }, TOP_RIGHT: { x: 85, y: 15 }, BOTTOM_LEFT: { x: 15, y: 85 }, BOTTOM_RIGHT: { x: 85, y: 85 } };
+      setPos(posMap[editingBadge.position] || { x: 22, y: 12 });
+    }
+    if (editingBadge.shape === "CORNER_POP") {
+      const reverseSnap = { TOP_LEFT: "TL", TOP_RIGHT: "TR", BOTTOM_LEFT: "BL", BOTTOM_RIGHT: "BR" };
+      setSnappedCorner(reverseSnap[editingBadge.position] || "TL");
+    }
+  }, [editingBadge]);
 
   const handleImageUpload = useCallback((e) => {
     const file = e.target.files[0];
@@ -1385,7 +1446,8 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange }) {
               disabled={disabled || fetcher.state !== "idle"}
               onClick={() => {
                 const fd = new FormData();
-                fd.append("intent", "create");
+                fd.append("intent", editingBadge ? "update" : "create");
+                if (editingBadge) fd.append("badgeId", editingBadge.id);
                 fd.append("label", label);
                 fd.append("color", color);
                 fd.append("textColor", textColor);
@@ -1408,6 +1470,7 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange }) {
                 fd.append("targetType", targetType);
                 fd.append("targetIds", targetIds);
                 fetcher.submit(fd, { method: "post" });
+                if (editingBadge) onEditDone();
               }}
               style={{
                 display: "inline-block",
@@ -1422,8 +1485,26 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange }) {
                 letterSpacing: "0.2px",
               }}
             >
-              {fetcher.state !== "idle" ? "Saving…" : "Create custom badge"}
+              {fetcher.state !== "idle" ? (editingBadge ? "Updating…" : "Saving…") : (editingBadge ? "Update badge" : "Create custom badge")}
             </button>
+            {editingBadge && (
+              <button
+                onClick={onEditDone}
+                style={{
+                  marginLeft: 8,
+                  background: "transparent",
+                  border: "1px solid #555",
+                  color: "#ccc",
+                  fontWeight: 600,
+                  fontSize: 12,
+                  padding: "10px 16px",
+                  borderRadius: 0,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1441,7 +1522,7 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange }) {
 }
 
 // ── MyBadgeCard ───────────────────────────────────────────────
-function MyBadgeCard({ badge, previewImage, fetcher }) {
+function MyBadgeCard({ badge, previewImage, fetcher, onEdit }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const isDeleting =
@@ -1535,7 +1616,7 @@ function MyBadgeCard({ badge, previewImage, fetcher }) {
         </div>
 
         <div style={{ display: "flex", gap: 6, marginTop: "auto", paddingTop: 8, flexWrap: "wrap" }}>
-          <Button size="slim" url={`/app/badges/${badge.id}/edit`}>Edit</Button>
+          <Button size="slim" onClick={() => onEdit(badge)}>Edit</Button>
           <Button
             size="slim"
             onClick={() => fetcher.submit(
@@ -1569,6 +1650,8 @@ export default function Dashboard() {
   const fetcher = useFetcher();
   const syncFetcher = useFetcher();
   const [previewImage, setPreviewImage] = useState(null);
+  const [editingBadge, setEditingBadge] = useState(null);
+  const builderRef = useRef(null);
   const isPro = plan === "PRO";
   const atLimit = !isPro && badgeCount >= 3;
   const isSyncing = syncFetcher.state !== "idle";
@@ -1677,8 +1760,8 @@ export default function Dashboard() {
 
         {/* Custom badge builder */}
         <Layout.Section>
-          <div id="custom-builder">
-            <CustomBadgeBuilder disabled={atLimit} previewImage={previewImage} onImageChange={setPreviewImage} />
+          <div id="custom-builder" ref={builderRef}>
+            <CustomBadgeBuilder disabled={atLimit && !editingBadge} previewImage={previewImage} onImageChange={setPreviewImage} editingBadge={editingBadge} onEditDone={() => setEditingBadge(null)} />
           </div>
         </Layout.Section>
 
@@ -1716,7 +1799,16 @@ export default function Dashboard() {
               ) : (
                 <InlineGrid columns={{ xs: 2, sm: 3, md: 3 }} gap="400">
                   {badges.map((badge) => (
-                    <MyBadgeCard key={badge.id} badge={badge} previewImage={previewImage} fetcher={fetcher} />
+                    <MyBadgeCard
+                      key={badge.id}
+                      badge={badge}
+                      previewImage={previewImage}
+                      fetcher={fetcher}
+                      onEdit={(b) => {
+                        setEditingBadge(b);
+                        builderRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }}
+                    />
                   ))}
                 </InlineGrid>
               )}
