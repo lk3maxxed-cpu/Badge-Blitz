@@ -128,6 +128,34 @@ export async function action({ request }) {
     return data({ success: true });
   }
 
+  if (intent === "product-badges") {
+    const { session } = await authenticate.admin(request);
+    const { shop } = session;
+    const shopRecord = await db.shop.findUnique({ where: { shopDomain: shop } });
+    if (!shopRecord) return data({ error: "Shop not found." }, { status: 400 });
+
+    const productId = formData.get("productId")?.trim();
+    if (!productId) return data({ error: "Product ID required." }, { status: 400 });
+    const selectedIds = JSON.parse(formData.get("selectedBadgeIds") || "[]");
+
+    const allBadges = await db.badge.findMany({ where: { shopId: shopRecord.id } });
+    await Promise.all(allBadges.map((badge) => {
+      const current = badge.targetIds ? badge.targetIds.split(",").map((s) => s.trim()).filter(Boolean) : [];
+      const has = current.includes(productId);
+      const want = selectedIds.includes(badge.id);
+      if (has === want) return Promise.resolve();
+      const updated = want ? [...new Set([...current, productId])] : current.filter((id) => id !== productId);
+      return db.badge.update({
+        where: { id: badge.id },
+        data: {
+          targetIds: updated.length ? updated.join(",") : null,
+          targetType: updated.length ? "SPECIFIC" : "ALL",
+        },
+      });
+    }));
+    return data({ success: true });
+  }
+
   // default: toggle active
   const active = formData.get("active") === "true";
   await db.badge.update({ where: { id: badgeId }, data: { active } });
@@ -1521,6 +1549,134 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
   );
 }
 
+// ── ProductBadgeManager ───────────────────────────────────────
+function ProductBadgeManager({ badges, isPro }) {
+  const fetcher = useFetcher();
+  const [productId, setProductId] = useState("");
+  const [committed, setCommitted] = useState("");
+  const [selected, setSelected] = useState({});
+  const saving = fetcher.state !== "idle";
+  const saved = fetcher.state === "idle" && fetcher.data?.success;
+
+  const load = () => {
+    const id = productId.trim();
+    if (!id) return;
+    setCommitted(id);
+    const initial = {};
+    badges.forEach((b) => {
+      const ids = b.targetIds ? b.targetIds.split(",").map((s) => s.trim()) : [];
+      initial[b.id] = ids.includes(id);
+    });
+    setSelected(initial);
+  };
+
+  const toggle = (id) => setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  const save = () => {
+    const selectedIds = Object.entries(selected).filter(([, v]) => v).map(([k]) => k);
+    const fd = new FormData();
+    fd.append("intent", "product-badges");
+    fd.append("productId", committed);
+    fd.append("selectedBadgeIds", JSON.stringify(selectedIds));
+    fetcher.submit(fd, { method: "post" });
+  };
+
+  const t = { border: "#2a2a2a", bg: "#111", inputBg: "#1a1a1a", text: "#fff", dim: "#888", accent: "#fff" };
+
+  if (!isPro) {
+    return (
+      <div style={{ background: "#0a0a0a", border: "1px solid #2a2a2a", borderRadius: 12, padding: 28 }}>
+        <InlineStack align="space-between" blockAlign="center" wrap={false}>
+          <BlockStack gap="100">
+            <InlineStack gap="200" blockAlign="center">
+              <Text variant="headingLg" as="h2" tone="base">
+                <span style={{ color: "#fff" }}>Product Badge Stacks</span>
+              </Text>
+              <span style={{ fontSize: 10, fontWeight: 700, background: "#553C9A", color: "#fff", padding: "2px 8px", borderRadius: 99, letterSpacing: "0.5px" }}>PRO</span>
+            </InlineStack>
+            <Text tone="subdued" variant="bodySm">
+              Assign multiple badges to any individual product. Stack a sale badge, a low-stock badge, and a custom label — all on one product card.
+            </Text>
+          </BlockStack>
+          <Button variant="primary" url="/app/upgrade">Upgrade — $9/mo</Button>
+        </InlineStack>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: "#0a0a0a", border: "1px solid #2a2a2a", borderRadius: 12, padding: 28, color: t.text }}>
+      <BlockStack gap="400">
+        <InlineStack gap="200" blockAlign="center">
+          <Text variant="headingLg" as="h2"><span style={{ color: "#fff" }}>Product Badge Stacks</span></Text>
+          <span style={{ fontSize: 10, fontWeight: 700, background: "#553C9A", color: "#fff", padding: "2px 8px", borderRadius: 99, letterSpacing: "0.5px" }}>PRO</span>
+        </InlineStack>
+        <Text tone="subdued" variant="bodySm">Enter a Shopify product ID to manage which badges appear on that product.</Text>
+
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Product ID</div>
+            <input
+              value={productId}
+              onChange={(e) => setProductId(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && load()}
+              placeholder="e.g. 8765432109876"
+              style={{ width: "100%", background: t.inputBg, color: t.text, border: `1px solid ${t.border}`, borderRadius: 6, padding: "8px 12px", fontSize: 13, boxSizing: "border-box" }}
+            />
+          </div>
+          <button
+            onClick={load}
+            style={{ background: "#fff", color: "#000", fontWeight: 700, fontSize: 13, padding: "9px 20px", border: "none", borderRadius: 6, cursor: "pointer", whiteSpace: "nowrap" }}
+          >
+            Load product
+          </button>
+        </div>
+
+        {committed && badges.length > 0 && (
+          <BlockStack gap="300">
+            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Badges on product {committed}
+            </div>
+            {badges.map((badge) => (
+              <label key={badge.id} style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer", padding: "10px 14px", background: t.inputBg, borderRadius: 8, border: `1px solid ${selected[badge.id] ? "#553C9A" : t.border}` }}>
+                <input
+                  type="checkbox"
+                  checked={!!selected[badge.id]}
+                  onChange={() => toggle(badge.id)}
+                  style={{ accentColor: "#553C9A", width: 16, height: 16, flexShrink: 0 }}
+                />
+                <BlockStack gap="0">
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>{badge.label}</span>
+                  <span style={{ color: t.dim, fontSize: 11 }}>{badge.type.replace(/_/g, " ")} · {badge.shape}</span>
+                </BlockStack>
+                <span style={{
+                  marginLeft: "auto", fontSize: 10, fontWeight: 700,
+                  background: badge.color, color: badge.textColor,
+                  padding: "2px 8px", borderRadius: 99,
+                }}>{badge.label}</span>
+              </label>
+            ))}
+            <InlineStack gap="200" blockAlign="center">
+              <button
+                onClick={save}
+                disabled={saving}
+                style={{ background: "#fff", color: "#000", fontWeight: 700, fontSize: 13, padding: "10px 22px", border: "none", borderRadius: 6, cursor: saving ? "not-allowed" : "pointer" }}
+              >
+                {saving ? "Saving…" : "Save badge stack"}
+              </button>
+              {saved && <span style={{ color: "#4ade80", fontSize: 12, fontWeight: 600 }}>✓ Saved</span>}
+            </InlineStack>
+          </BlockStack>
+        )}
+
+        {committed && badges.length === 0 && (
+          <Text tone="subdued" variant="bodySm">Create some badges first, then come back to stack them on products.</Text>
+        )}
+      </BlockStack>
+    </div>
+  );
+}
+
 // ── MyBadgeCard ───────────────────────────────────────────────
 function MyBadgeCard({ badge, previewImage, fetcher, onEdit }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -1814,6 +1970,11 @@ export default function Dashboard() {
               )}
             </BlockStack>
           </div>
+        </Layout.Section>
+
+        {/* Product Badge Stacks — PRO */}
+        <Layout.Section>
+          <ProductBadgeManager badges={badges} isPro={isPro} />
         </Layout.Section>
 
         <Box minHeight="400px" />
