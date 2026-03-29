@@ -174,251 +174,6 @@ export async function action({ request }) {
   return data({ success: true });
 }
 
-// ── ProductCardUpload ─────────────────────────────────────────
-function ProductCardUpload({ previewImage, onImageChange }) {
-  const fileInputRef = useRef(null);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [rawImage, setRawImage] = useState(null);
-
-  const readFile = (file) => {
-    if (!file || !file.type.startsWith("image/")) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setRawImage(ev.target.result);
-    reader.readAsDataURL(file);
-  };
-
-  const handleFileInput = (e) => { readFile(e.target.files[0]); e.target.value = ""; };
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    readFile(e.dataTransfer.files[0]);
-  };
-
-  return (
-    <>
-      {rawImage && (
-        <CropModal
-          src={rawImage}
-          onApply={(cropped) => { onImageChange(cropped); setRawImage(null); }}
-          onCancel={() => setRawImage(null)}
-        />
-      )}
-
-      <div style={{
-        borderRadius: 12,
-        border: "1px solid #e1e3e5",
-        padding: "32px 36px",
-        background: "#fff",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-      }}>
-        {/* Header */}
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-            <Text variant="headingMd" as="h2">Test product image</Text>
-            <span style={{
-              background: "#f0f4ff", color: "#3b5bdb", fontSize: 11, fontWeight: 700,
-              letterSpacing: "0.4px", padding: "2px 8px", borderRadius: 99,
-            }}>
-              Preview only
-            </span>
-          </div>
-          <Text tone="subdued" variant="bodySm">
-            Upload a product photo to see exactly how your badges will look across the builder and every template below. This image is never saved or published.
-          </Text>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, alignItems: "start" }}>
-
-          {/* ── Big realistic product card ── */}
-          <div style={{
-            border: "1px solid #e1e3e5",
-            borderRadius: 12,
-            overflow: "hidden",
-            background: "#fff",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06)",
-          }}>
-            {/* Image area */}
-            <div
-              onClick={() => !previewImage && fileInputRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); if (!previewImage) setIsDragOver(true); }}
-              onDragLeave={() => setIsDragOver(false)}
-              onDrop={handleDrop}
-              style={{
-                position: "relative",
-                aspectRatio: "1 / 1",
-                background: isDragOver ? "#eef2ff" : "#f6f6f7",
-                overflow: "hidden",
-                cursor: previewImage ? "default" : "pointer",
-                transition: "background 0.15s ease",
-                border: isDragOver ? "2px dashed #3b5bdb" : "none",
-              }}
-            >
-              {previewImage ? (
-                <img
-                  src={previewImage}
-                  alt="Product preview"
-                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
-                />
-              ) : (
-                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
-                  <div style={{
-                    width: 56, height: 56, borderRadius: "50%",
-                    background: isDragOver ? "#dde4ff" : "#ececec",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 24, transition: "background 0.15s ease",
-                  }}>
-                    🖼
-                  </div>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 4 }}>
-                      {isDragOver ? "Drop to upload" : "Click to upload photo"}
-                    </div>
-                    <div style={{ fontSize: 11, color: "#888" }}>or drag and drop · JPG, PNG, WEBP</div>
-                  </div>
-                  <div style={{
-                    border: "1.5px dashed #ccc",
-                    position: "absolute",
-                    inset: 12,
-                    borderRadius: 8,
-                    pointerEvents: "none",
-                    borderColor: isDragOver ? "#3b5bdb" : "#ccc",
-                    transition: "border-color 0.15s ease",
-                  }} />
-                </div>
-              )}
-
-              {/* Sale badge mockup */}
-              {previewImage && (
-                <span style={{
-                  position: "absolute", top: 10, left: 10,
-                  background: "#e53e3e", color: "#fff",
-                  fontSize: 10, fontWeight: 800, letterSpacing: "0.5px",
-                  padding: "3px 9px", borderRadius: 999,
-                  pointerEvents: "none",
-                  boxShadow: "0 2px 6px rgba(229,62,62,0.35)",
-                }}>
-                  SALE
-                </span>
-              )}
-            </div>
-
-            {/* Product info */}
-            <div style={{ padding: "14px 16px 18px" }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: "#111", marginBottom: 3, lineHeight: 1.3 }}>
-                Premium Product Name
-              </div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 14 }}>
-                <span style={{ fontSize: 15, fontWeight: 700, color: "#111" }}>$49.99</span>
-                <span style={{ fontSize: 13, color: "#999", textDecoration: "line-through" }}>$69.99</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#e53e3e" }}>28% off</span>
-              </div>
-              <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-                {["S","M","L","XL"].map((sz) => (
-                  <div key={sz} style={{
-                    width: 28, height: 28, borderRadius: 4,
-                    border: sz === "M" ? "2px solid #111" : "1px solid #ddd",
-                    fontSize: 10, fontWeight: 700, color: sz === "M" ? "#111" : "#888",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    cursor: "default",
-                  }}>{sz}</div>
-                ))}
-              </div>
-              <button style={{
-                width: "100%", padding: "10px 0",
-                background: "#111", color: "#fff",
-                border: "none", borderRadius: 6,
-                fontSize: 13, fontWeight: 700, cursor: "default",
-                letterSpacing: "0.2px",
-              }}>
-                Add to cart
-              </button>
-            </div>
-          </div>
-
-          {/* ── Right panel: instructions + actions ── */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 24, paddingTop: 8 }}>
-            <div>
-              <Text variant="headingSm" as="h3">How it works</Text>
-              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 12 }}>
-                {[
-                  { num: "1", title: "Upload your product photo", desc: "Use any product image from your store — or a placeholder." },
-                  { num: "2", title: "See badges populate live", desc: "Your image appears in the badge builder preview and every template card on this page." },
-                  { num: "3", title: "Build with confidence", desc: "Test badge placement, colors, and sizes against a real image before going live." },
-                ].map(({ num, title, desc }) => (
-                  <div key={num} style={{ display: "flex", gap: 12 }}>
-                    <div style={{
-                      flexShrink: 0, width: 26, height: 26, borderRadius: "50%",
-                      background: "#f0f4ff", color: "#3b5bdb",
-                      fontSize: 12, fontWeight: 800,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>{num}</div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "#111", marginBottom: 2 }}>{title}</div>
-                      <div style={{ fontSize: 12, color: "#666", lineHeight: 1.5 }}>{desc}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 20, display: "flex", flexDirection: "column", gap: 10 }}>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileInput}
-                style={{ display: "none" }}
-              />
-              {!previewImage ? (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{
-                    padding: "12px 24px",
-                    background: "#111", color: "#fff",
-                    border: "none", borderRadius: 8,
-                    fontSize: 13, fontWeight: 700, cursor: "pointer",
-                    letterSpacing: "0.2px",
-                  }}
-                >
-                  Upload product photo
-                </button>
-              ) : (
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{
-                      flex: 1, padding: "11px 0",
-                      background: "#111", color: "#fff",
-                      border: "none", borderRadius: 8,
-                      fontSize: 13, fontWeight: 700, cursor: "pointer",
-                    }}
-                  >
-                    Change photo
-                  </button>
-                  <button
-                    onClick={() => onImageChange(null)}
-                    style={{
-                      padding: "11px 16px",
-                      background: "#fff", color: "#666",
-                      border: "1.5px solid #e0e0e0", borderRadius: 8,
-                      fontSize: 13, fontWeight: 600, cursor: "pointer",
-                    }}
-                  >
-                    Remove
-                  </button>
-                </div>
-              )}
-              <div style={{ fontSize: 11, color: "#999", textAlign: "center" }}>
-                Never saved or published · local preview only
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
 // ── CropModal ────────────────────────────────────────────────
 const CROP_SIZE = 300; // viewport px
 
@@ -1014,10 +769,11 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
         </button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 32, alignItems: "start" }}>
+      {/* ── Live preview — centered at top ── */}
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 28 }}>
 
         {/* ── Live preview (draggable) ── */}
-        <div>
+        <div style={{ width: "100%", maxWidth: 340 }}>
           <div
             ref={containerRef}
             onMouseMove={handleMouseMove}
@@ -1126,8 +882,12 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
           <div style={{ marginTop: 8, height: 8, background: t.surface, borderRadius: 3, width: "70%" }} />
           <div style={{ marginTop: 6, height: 8, background: t.surface, borderRadius: 3, width: "45%" }} />
         </div>
+      </div>
 
-        {/* ── Controls ── */}
+      {/* ── Controls — 2-column grid ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
+
+        {/* Left: Label, Shape, Position */}
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
 
           {/* Label */}
@@ -1376,6 +1136,11 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
             </div>
           )}
 
+        </div>
+
+        {/* Right: Colors, Fill, Size, Visibility */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+
           {/* Size */}
           <div>
             {label_(`Size — ${size}px`)}
@@ -1444,8 +1209,14 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
             )}
           </div>
 
-          {/* Targeting */}
-          <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${t.border}` }}>
+        </div>
+      </div>
+
+      {/* ── Targeting + CTA — full width ── */}
+      <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 18 }}>
+
+        {/* Targeting */}
+        <div style={{ paddingTop: 16, borderTop: `1px solid ${t.border}` }}>
             <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>
               Apply to
             </div>
@@ -1480,8 +1251,8 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
             )}
           </div>
 
-          {/* CTA */}
-          <div style={{ marginTop: 4 }}>
+        {/* CTA */}
+        <div>
             <button
               disabled={disabled || fetcher.state !== "idle"}
               onClick={() => {
@@ -1545,7 +1316,6 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
                 Cancel
               </button>
             )}
-          </div>
         </div>
       </div>
 
@@ -1877,10 +1647,10 @@ export default function Dashboard() {
 
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                 <a
-                  href="#badge-gallery"
+                  href="#my-badges"
                   style={{ display: "inline-block", background: "#000", color: "#fff", fontWeight: 700, fontSize: 13, padding: "11px 22px", textDecoration: "none", letterSpacing: "0.2px" }}
                 >
-                  Browse premade badges
+                  Browse my badges
                 </a>
                 <a
                   href="#custom-builder"
@@ -1920,11 +1690,6 @@ export default function Dashboard() {
             </Banner>
           </Layout.Section>
         )}
-
-        {/* Product card upload */}
-        <Layout.Section>
-          <ProductCardUpload previewImage={previewImage} onImageChange={setPreviewImage} />
-        </Layout.Section>
 
         {/* Custom badge builder */}
         <Layout.Section>
