@@ -1474,8 +1474,8 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
               }}
               style={{
                 display: "inline-block",
-                background: disabled ? "#333" : "#fff",
-                color: disabled ? "#666" : "#000",
+                background: disabled ? "#333" : "#000",
+                color: disabled ? "#666" : "#fff",
                 fontWeight: 700,
                 fontSize: 13,
                 padding: "10px 20px",
