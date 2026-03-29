@@ -15,19 +15,31 @@ import {
   Divider,
   Box,
 } from "@shopify/polaris";
-import { authenticate } from "../shopify.server";
+import { authenticate, PLAN_PRO } from "../shopify.server";
 import { data } from "react-router";
 import db from "../db.server";
 
 // ── Loader ──────────────────────────────────────────────────
 export async function loader({ request }) {
-  const { session } = await authenticate.admin(request);
+  const { session, billing } = await authenticate.admin(request);
   const { shop } = session;
+
+  // Sync billing status from Shopify on every dashboard load
+  const { hasActivePayment } = await billing.check({
+    plans: [PLAN_PRO],
+    isTest: process.env.NODE_ENV !== "production",
+  });
+  const plan = hasActivePayment ? "PRO" : "FREE";
 
   let shopRecord = await db.shop.findUnique({ where: { shopDomain: shop } });
   if (!shopRecord) {
     shopRecord = await db.shop.create({
-      data: { shopDomain: shop, plan: "FREE" },
+      data: { shopDomain: shop, plan },
+    });
+  } else if (shopRecord.plan !== plan) {
+    shopRecord = await db.shop.update({
+      where: { shopDomain: shop },
+      data: { plan },
     });
   }
 
@@ -38,7 +50,7 @@ export async function loader({ request }) {
 
   return data({
     shop,
-    plan: shopRecord.plan,
+    plan,
     badges,
     badgeCount: badges.length,
   });
@@ -1598,7 +1610,7 @@ function ProductBadgeManager({ badges, isPro }) {
               Assign multiple badges to any individual product. Stack a sale badge, a low-stock badge, and a custom label — all on one product card.
             </Text>
           </BlockStack>
-          <Button variant="primary" url="/app/upgrade">Upgrade — $9/mo</Button>
+          <Button variant="primary" url="/app/upgrade">Upgrade — $4.99/mo</Button>
         </InlineStack>
       </div>
     );
@@ -1902,7 +1914,7 @@ export default function Dashboard() {
             <Banner
               title="You've reached the free badge limit"
               tone="warning"
-              action={{ content: "Upgrade to Pro — $9/mo", url: "/app/upgrade" }}
+              action={{ content: "Upgrade to PRO — $4.99/mo", url: "/app/upgrade" }}
             >
               Free stores can run up to 3 active badges. Upgrade for unlimited.
             </Banner>
