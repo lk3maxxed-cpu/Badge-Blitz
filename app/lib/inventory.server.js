@@ -6,8 +6,8 @@
 
 import db from "../db.server";
 
-const GET_ALL_PRODUCTS_INVENTORY = `#graphql
-  query GetAllProductsInventory($cursor: String) {
+const GET_PRODUCTS_INVENTORY_PAGE = `#graphql
+  query GetProductsInventoryPage($cursor: String) {
     products(first: 50, after: $cursor) {
       pageInfo {
         hasNextPage
@@ -58,24 +58,25 @@ function totalInventory(productNode) {
   );
 }
 
-// Fetch all products with inventory, handling pagination
-async function fetchAllProducts(admin) {
-  const products = [];
+// Process all products page by page without accumulating into memory.
+// Calls onPage(nodes) for each page — stops early if onPage returns false.
+async function forEachProductPage(admin, onPage) {
   let cursor = null;
   let hasNextPage = true;
 
   while (hasNextPage) {
-    const response = await admin.graphql(GET_ALL_PRODUCTS_INVENTORY, {
+    const response = await admin.graphql(GET_PRODUCTS_INVENTORY_PAGE, {
       variables: { cursor },
     });
     const json = await response.json();
     const { nodes, pageInfo } = json.data.products;
-    products.push(...nodes);
+
+    const keepGoing = onPage(nodes);
+    if (keepGoing === false) break;
+
     hasNextPage = pageInfo.hasNextPage;
     cursor = pageInfo.endCursor;
   }
-
-  return products;
 }
 
 // Given a raw inventory_item_id integer from a webhook payload,
@@ -104,22 +105,19 @@ export async function syncLowStockBadges(admin, shopRecord) {
   const allBadges = badges.filter((b) => b.targetType === "ALL");
   const specificBadges = badges.filter((b) => b.targetType === "SPECIFIC");
 
-  let allProducts = null;
-
-  async function getAll() {
-    if (!allProducts) allProducts = await fetchAllProducts(admin);
-    return allProducts;
-  }
-
   let synced = 0;
 
+  // ALL-targeting badges: stream pages and collect matching IDs without loading
+  // the entire product catalog into memory at once.
   for (const badge of allBadges) {
     const threshold = badge.stockThreshold ?? 5;
-    const products = await getAll();
+    const lowStockIds = [];
 
-    const lowStockIds = products
-      .filter((p) => totalInventory(p) <= threshold)
-      .map((p) => p.id);
+    await forEachProductPage(admin, (nodes) => {
+      for (const p of nodes) {
+        if (totalInventory(p) <= threshold) lowStockIds.push(p.id);
+      }
+    });
 
     await db.badge.update({
       where: { id: badge.id },
@@ -128,6 +126,7 @@ export async function syncLowStockBadges(admin, shopRecord) {
     synced++;
   }
 
+  // SPECIFIC-targeting badges: only query the exact product IDs listed
   for (const badge of specificBadges) {
     if (!badge.targetIds) continue;
 

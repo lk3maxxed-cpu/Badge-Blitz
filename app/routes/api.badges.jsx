@@ -3,15 +3,59 @@
 import { data } from "react-router";
 import db from "../db.server";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
+// Rate limiting: 60 req/min per IP (in-memory, resets on restart)
+const rateLimitMap = new Map();
+const RATE_LIMIT = 60;
+const RATE_WINDOW_MS = 60_000;
+
+function isRateLimited(ip) {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now - entry.windowStart > RATE_WINDOW_MS) {
+    rateLimitMap.set(ip, { count: 1, windowStart: now });
+    return false;
+  }
+  entry.count++;
+  return entry.count > RATE_LIMIT;
+}
+
+// Only allow requests from *.myshopify.com origins
+function getAllowedOrigin(request) {
+  const origin = request.headers.get("Origin") || "";
+  if (/^https?:\/\/[a-z0-9-]+\.myshopify\.com$/i.test(origin)) {
+    return origin;
+  }
+  return null;
+}
+
+function getCorsHeaders(request) {
+  const origin = getAllowedOrigin(request);
+  return {
+    "Access-Control-Allow-Origin": origin || "null",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Vary": "Origin",
+  };
+}
 
 export async function loader({ request }) {
+  const corsHeaders = getCorsHeaders(request);
+
   if (request.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: CORS_HEADERS });
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
+  // Rate limit by CF-Connecting-IP, X-Forwarded-For, or fallback
+  const ip =
+    request.headers.get("CF-Connecting-IP") ||
+    request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ||
+    "unknown";
+
+  if (isRateLimited(ip)) {
+    return data(
+      { error: "Too many requests" },
+      { status: 429, headers: { ...corsHeaders, "Retry-After": "60" } }
+    );
   }
 
   const url = new URL(request.url);
@@ -20,7 +64,7 @@ export async function loader({ request }) {
   if (!shop) {
     return data(
       { error: "Missing shop parameter" },
-      { status: 400, headers: CORS_HEADERS }
+      { status: 400, headers: corsHeaders }
     );
   }
 
@@ -35,7 +79,7 @@ export async function loader({ request }) {
   });
 
   if (!shopRecord) {
-    return data([], { headers: CORS_HEADERS });
+    return data([], { headers: corsHeaders });
   }
 
   const badges = shopRecord.badges.map((b) => ({
@@ -66,7 +110,7 @@ export async function loader({ request }) {
 
   return data(badges, {
     headers: {
-      ...CORS_HEADERS,
+      ...corsHeaders,
       "Cache-Control": "public, max-age=60",
     },
   });

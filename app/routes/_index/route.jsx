@@ -18,9 +18,10 @@ export default function App() {
   return (
     <div className={styles.index}>
       <div className={styles.content}>
-        <h1 className={styles.heading}>A short heading about [your app]</h1>
+        <h1 className={styles.heading}>Badge Blitz — Product Badge Overlays</h1>
         <p className={styles.text}>
-          A tagline about [your app] that describes your value proposition.
+          Add eye-catching badges to your product images — Sale, New, Low Stock,
+          and fully custom labels — without touching a line of theme code.
         </p>
         {showForm && (
           <Form className={styles.form} method="post" action="/auth/login">
@@ -36,16 +37,16 @@ export default function App() {
         )}
         <ul className={styles.list}>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Drag-and-drop badge builder.</strong> Choose shape, color,
+            gradient, position, and animation — preview updates live.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Smart targeting.</strong> Show badges on all products or pin
+            them to specific SKUs. Low-stock badges auto-update from inventory.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Zero theme edits.</strong> Enable once in Shopify Customize
+            and badges appear instantly across your storefront.
           </li>
         </ul>
       </div>
