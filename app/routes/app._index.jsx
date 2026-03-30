@@ -96,6 +96,8 @@ export async function action({ request }) {
         gradientDirection: formData.get("gradientDirection") || "to right",
         hoverOnly: formData.get("hoverOnly") === "true",
         hoverDuration: parseInt(formData.get("hoverDuration") || "300", 10),
+        slideIn: formData.get("slideIn") === "true",
+        slideFrom: formData.get("slideFrom") || "LEFT",
         scrollingEnabled: formData.get("scrollingEnabled") === "true",
         scrollSpeed: parseInt(formData.get("scrollSpeed") || "20", 10),
         autoDiscount: false,
@@ -131,6 +133,8 @@ export async function action({ request }) {
         gradientDirection: formData.get("gradientDirection") || "to right",
         hoverOnly: formData.get("hoverOnly") === "true",
         hoverDuration: parseInt(formData.get("hoverDuration") || "300", 10),
+        slideIn: formData.get("slideIn") === "true",
+        slideFrom: formData.get("slideFrom") || "LEFT",
         scrollingEnabled: formData.get("scrollingEnabled") === "true",
         scrollSpeed: parseInt(formData.get("scrollSpeed") || "20", 10),
         targetType: formData.get("targetType") || "ALL",
@@ -543,6 +547,8 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
     setGradientDirection(editingBadge.gradientDirection || "to right");
     setHoverOnly(!!editingBadge.hoverOnly);
     setHoverDuration(editingBadge.hoverDuration || 300);
+    setSlideIn(!!editingBadge.slideIn);
+    setSlideFrom(editingBadge.slideFrom || "LEFT");
     setScrollingEnabled(!!editingBadge.scrollingEnabled);
     setScrollSpeed(editingBadge.scrollSpeed || 20);
     setTargetType(editingBadge.targetType || "ALL");
@@ -1276,6 +1282,8 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
                 fd.append("gradientDirection", gradientDirection);
                 fd.append("hoverOnly", String(hoverOnly && !slideIn));
                 fd.append("hoverDuration", String(hoverDuration));
+                fd.append("slideIn", String(slideIn));
+                fd.append("slideFrom", slideFrom);
                 fd.append("scrollingEnabled", String(scrollingEnabled));
                 fd.append("scrollSpeed", String(scrollSpeed));
                 fd.append("targetType", targetType);
@@ -1460,8 +1468,11 @@ function ProductBadgeManager({ badges, isPro }) {
 }
 
 // ── MyBadgeCard ───────────────────────────────────────────────
+const CARD_SLIDE_OFFSET = { LEFT: "translateX(-300%)", RIGHT: "translateX(300%)", TOP: "translateY(-300%)", BOTTOM: "translateY(300%)" };
+
 function MyBadgeCard({ badge, previewImage, fetcher, onEdit }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   const isDeleting =
     fetcher.state !== "idle" &&
@@ -1514,7 +1525,11 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit }) {
       opacity: isDeleting ? 0.4 : 1, transition: "opacity 0.2s ease",
     }}>
       {/* Product mockup */}
-      <div style={{ position: "relative", aspectRatio: "1 / 1", background: "#f6f6f7", overflow: "hidden" }}>
+      <div
+        style={{ position: "relative", aspectRatio: "1 / 1", background: "#f6f6f7", overflow: "hidden" }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
         {previewImage ? (
           <img src={previewImage} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
         ) : (
@@ -1523,15 +1538,30 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit }) {
             <div style={{ position: "absolute", bottom: "15%", left: "50%", transform: "translateX(-50%)", width: "55%", height: "60%", background: "#e3e3e3", borderRadius: 6 }} />
           </>
         )}
-        {badge.shape === "BAR" && badge.scrollingEnabled ? (
-          <div style={{ ...badgeStyle, overflow: "hidden" }}>
-            <span style={{ display: "inline-block", whiteSpace: "nowrap", animation: `bb-marquee ${badge.scrollSpeed || 20}s linear infinite` }}>
-              {(() => { const seg = badge.label + "\u00a0\u00a0·\u00a0\u00a0"; return seg.repeat(16); })()}
-            </span>
-          </div>
-        ) : (
-          <span style={badgeStyle}>{badge.label}</span>
-        )}
+        {(() => {
+          const slideOffset = CARD_SLIDE_OFFSET[badge.slideFrom] || CARD_SLIDE_OFFSET.LEFT;
+          const visStyle = badge.slideIn
+            ? {
+                opacity: hovered ? 1 : 0,
+                transform: hovered
+                  ? (badgeStyle.transform || "")
+                  : `${badgeStyle.transform || ""} ${slideOffset}`.trim(),
+                transition: `transform ${badge.hoverDuration || 300}ms cubic-bezier(0.4,0,0.2,1), opacity ${badge.hoverDuration || 300}ms ease`,
+              }
+            : badge.hoverOnly
+            ? { opacity: hovered ? 1 : 0, transition: `opacity ${badge.hoverDuration || 300}ms ease` }
+            : {};
+          if (badge.shape === "BAR" && badge.scrollingEnabled) {
+            return (
+              <div style={{ ...badgeStyle, overflow: "hidden", ...visStyle }}>
+                <span style={{ display: "inline-block", whiteSpace: "nowrap", animation: `bb-marquee ${badge.scrollSpeed || 20}s linear infinite` }}>
+                  {(() => { const seg = badge.label + "\u00a0\u00a0·\u00a0\u00a0"; return seg.repeat(16); })()}
+                </span>
+              </div>
+            );
+          }
+          return <span style={{ ...badgeStyle, ...visStyle }}>{badge.label}</span>;
+        })()}
         {!badge.active && (
           <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.55)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: "#888", background: "#fff", padding: "3px 10px", borderRadius: 99, border: "1px solid #ddd" }}>Inactive</span>

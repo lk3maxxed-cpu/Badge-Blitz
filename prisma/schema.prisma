@@ -75,6 +75,8 @@ model Badge {
 
   hoverOnly     Boolean @default(false) // badge hidden until product card is hovered
   hoverDuration Int     @default(300)   // fade-in duration in ms (100–1000)
+  slideIn       Boolean @default(false) // badge slides in from slideFrom direction on hover
+  slideFrom     String  @default("LEFT") // LEFT | RIGHT | TOP | BOTTOM
 
   scrollingEnabled Boolean @default(false) // BAR: animate text as infinite marquee
   scrollSpeed      Int     @default(20)    // BAR: marquee cycle duration in seconds (5–60; lower = faster)
