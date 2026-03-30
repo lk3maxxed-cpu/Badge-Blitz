@@ -87,6 +87,14 @@ model Badge {
   collectionIds String?   // comma-separated collection GIDs for targetType COLLECTION
   iconDataUrl   String?   // base64 dataURL for custom PNG/SVG icon (replaces text label)
 
+  fontFamily    String  @default("system")   // system | impact | georgia | courier | trebuchet
+  textTransform String  @default("none")     // none | uppercase | capitalize | lowercase
+  borderWidth   Int     @default(0)          // border thickness in px (0 = none)
+  borderColor   String  @default("#ffffff")  // border / outline color
+  shadowStyle   String  @default("none")     // none | soft | hard | glow
+  animEffect    String  @default("none")     // none | pulse | glow | shimmer | confetti | 3d
+  showCountdown Boolean @default(false)      // replace label with live countdown using endsAt
+
   active   Boolean @default(true)
   priority Int     @default(0)
 

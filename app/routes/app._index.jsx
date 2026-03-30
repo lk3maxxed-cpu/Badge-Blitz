@@ -144,6 +144,13 @@ export async function action({ request }) {
         iconDataUrl: formData.get("iconDataUrl") || null,
         startsAt: startsAtRaw ? new Date(startsAtRaw) : null,
         endsAt: endsAtRaw ? new Date(endsAtRaw) : null,
+        fontFamily: formData.get("fontFamily") || "system",
+        textTransform: formData.get("textTransform") || "none",
+        borderWidth: parseInt(formData.get("borderWidth") || "0", 10),
+        borderColor: formData.get("borderColor") || "#ffffff",
+        shadowStyle: formData.get("shadowStyle") || "none",
+        animEffect: formData.get("animEffect") || "none",
+        showCountdown: formData.get("showCountdown") === "true",
         priority: 0,
         active: true,
       },
@@ -187,8 +194,30 @@ export async function action({ request }) {
         iconDataUrl: formData.get("iconDataUrl") || null,
         startsAt: startsAtRaw ? new Date(startsAtRaw) : null,
         endsAt: endsAtRaw ? new Date(endsAtRaw) : null,
+        fontFamily: formData.get("fontFamily") || "system",
+        textTransform: formData.get("textTransform") || "none",
+        borderWidth: parseInt(formData.get("borderWidth") || "0", 10),
+        borderColor: formData.get("borderColor") || "#ffffff",
+        shadowStyle: formData.get("shadowStyle") || "none",
+        animEffect: formData.get("animEffect") || "none",
+        showCountdown: formData.get("showCountdown") === "true",
       },
     });
+    return data({ success: true });
+  }
+
+  if (intent === "duplicate") {
+    const src = await db.badge.findUnique({ where: { id: badgeId } });
+    if (!src) return data({ error: "Badge not found." }, { status: 404 });
+    const { id: _id, createdAt: _c, updatedAt: _u, syncedTargetIds: _s, ...rest } = src;
+    await db.badge.create({ data: { ...rest, label: rest.label + " (copy)", active: false, priority: 0 } });
+    return data({ success: true });
+  }
+
+  if (intent === "bulk-toggle") {
+    const ids = JSON.parse(formData.get("badgeIds") || "[]");
+    const active = formData.get("active") === "true";
+    await db.badge.updateMany({ where: { id: { in: ids } }, data: { active } });
     return data({ success: true });
   }
 
@@ -483,7 +512,22 @@ const GRADIENT_DIRECTIONS = [
   { label: "↙", value: "to bottom left" },
 ];
 
-function buildBadgeStyle({ color, textColor, shape, edgeStyle, size, px, py, gradientEnabled, gradientColorEnd, gradientDirection, cpCorner, cpExpanded }) {
+const FONT_FAMILIES = {
+  system:    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  impact:    "Impact, 'Haettenschweiler', 'Arial Narrow Bold', sans-serif",
+  georgia:   "Georgia, 'Times New Roman', serif",
+  courier:   "'Courier New', Courier, monospace",
+  trebuchet: "'Trebuchet MS', Helvetica, sans-serif",
+};
+
+function shadowCSS(shadowStyle, color) {
+  if (shadowStyle === "soft") return "0 2px 10px rgba(0,0,0,0.30)";
+  if (shadowStyle === "hard") return "3px 3px 0px rgba(0,0,0,0.85)";
+  if (shadowStyle === "glow") return `0 0 12px ${color}, 0 0 24px ${color}66`;
+  return "none";
+}
+
+function buildBadgeStyle({ color, textColor, shape, edgeStyle, size, px, py, gradientEnabled, gradientColorEnd, gradientDirection, cpCorner, cpExpanded, fontFamily, textTransform, borderWidth, borderColor, shadowStyle }) {
   const isCircle = shape === "CIRCLE";
   const isBar = shape === "BAR";
   const isCp = shape === "CORNER_POP";
@@ -491,13 +535,21 @@ function buildBadgeStyle({ color, textColor, shape, edgeStyle, size, px, py, gra
     ? `linear-gradient(${gradientDirection || "to right"}, ${color}, ${gradientColorEnd})`
     : color;
 
+  // Shared style extensions from new design fields
+  const sharedExtra = {
+    fontFamily: FONT_FAMILIES[fontFamily] || FONT_FAMILIES.system,
+    textTransform: textTransform === "none" ? undefined : textTransform,
+    ...(borderWidth > 0 ? { border: `${borderWidth}px solid ${borderColor}`, boxSizing: "border-box" } : {}),
+    boxShadow: shadowStyle !== "none" ? shadowCSS(shadowStyle, color) : undefined,
+  };
+
   if (isCp) {
     const corner = cpCorner || "TOP_LEFT";
     const isBottom = corner.includes("BOTTOM");
     const isRight  = corner.includes("RIGHT");
     const vPad = Math.round(size * 0.55);
     const hPad = Math.round(size * 1.0);
-    const r    = Math.round(size * 1.4); // arc radius — scales with font size, stays tasteful
+    const r    = Math.round(size * 1.4);
     return {
       position: "absolute",
       top:    isBottom ? "auto" : 0,
@@ -515,20 +567,19 @@ function buildBadgeStyle({ color, textColor, shape, edgeStyle, size, px, py, gra
       padding: `${vPad}px ${hPad}px`,
       transform: cpExpanded ? "scale(1.18)" : "scale(1)",
       transformOrigin: `${isBottom ? "bottom" : "top"} ${isRight ? "right" : "left"}`,
-      boxShadow: cpExpanded ? "0 6px 18px rgba(0,0,0,0.32)" : "none",
+      boxShadow: cpExpanded ? "0 6px 18px rgba(0,0,0,0.32)" : (sharedExtra.boxShadow || "none"),
       transition: "transform 0.25s ease, box-shadow 0.25s ease",
       cursor: "default",
       userSelect: "none",
       zIndex: 2,
+      ...sharedExtra,
     };
   }
 
   if (isBar) {
     return {
       position: "absolute",
-      left: 0,
-      right: 0,
-      width: "100%",
+      left: 0, right: 0, width: "100%",
       top: `${py}%`,
       transform: "translateY(-50%)",
       background: bg,
@@ -543,6 +594,7 @@ function buildBadgeStyle({ color, textColor, shape, edgeStyle, size, px, py, gra
       cursor: "ns-resize",
       userSelect: "none",
       zIndex: 2,
+      ...sharedExtra,
     };
   }
 
@@ -560,7 +612,6 @@ function buildBadgeStyle({ color, textColor, shape, edgeStyle, size, px, py, gra
     whiteSpace: "nowrap",
     cursor: "grab",
     userSelect: "none",
-    // Circle: padding drives the size so the text always fits; aspect-ratio keeps it round
     padding: isCircle
       ? `${Math.round(size * 0.6)}px`
       : shape === "PILL" ? "4px 10px"
@@ -573,6 +624,7 @@ function buildBadgeStyle({ color, textColor, shape, edgeStyle, size, px, py, gra
     alignItems: isCircle ? "center" : "unset",
     justifyContent: isCircle ? "center" : "unset",
     textAlign: isCircle ? "center" : "unset",
+    ...sharedExtra,
   };
 }
 
@@ -605,6 +657,13 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [iconDataUrl, setIconDataUrl] = useState(null);
+  const [fontFamily, setFontFamily] = useState("system");
+  const [textTransform, setTextTransform] = useState("none");
+  const [borderWidth, setBorderWidth] = useState(0);
+  const [borderColor, setBorderColor] = useState("#ffffff");
+  const [shadowStyle, setShadowStyle] = useState("none");
+  const [animEffect, setAnimEffect] = useState("none");
+  const [showCountdown, setShowCountdown] = useState(false);
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
   const iconFileInputRef = useRef(null);
@@ -638,6 +697,13 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
     setBadgeType(editingBadge.type || "CUSTOM");
     setStockThreshold(editingBadge.stockThreshold || 5);
     setIconDataUrl(editingBadge.iconDataUrl || null);
+    setFontFamily(editingBadge.fontFamily || "system");
+    setTextTransform(editingBadge.textTransform || "none");
+    setBorderWidth(editingBadge.borderWidth ?? 0);
+    setBorderColor(editingBadge.borderColor || "#ffffff");
+    setShadowStyle(editingBadge.shadowStyle || "none");
+    setAnimEffect(editingBadge.animEffect || "none");
+    setShowCountdown(!!editingBadge.showCountdown);
     setStartsAt(editingBadge.startsAt ? new Date(editingBadge.startsAt).toISOString().slice(0, 16) : "");
     setEndsAt(editingBadge.endsAt ? new Date(editingBadge.endsAt).toISOString().slice(0, 16) : "");
     if (editingBadge.positionX != null && editingBadge.positionY != null) {
@@ -695,13 +761,19 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
     e.target.value = "";
   }, []);
 
-  // Inject the marquee keyframe once into the document head for builder preview
+  // Inject animation keyframes once for builder preview
   useEffect(() => {
-    const id = "bb-marquee-kf";
+    const id = "bb-anim-kf";
     if (!document.getElementById(id)) {
       const s = document.createElement("style");
       s.id = id;
-      s.textContent = "@keyframes bb-marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}";
+      s.textContent = [
+        "@keyframes bb-marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}",
+        "@keyframes bb-pulse{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.12)}}",
+        "@keyframes bb-pulse-bar{0%,100%{transform:translateY(-50%) scale(1)}50%{transform:translateY(-50%) scale(1.04)}}",
+        "@keyframes bb-glow{0%,100%{opacity:1;filter:brightness(1)}50%{opacity:0.85;filter:brightness(1.35)}}",
+        "@keyframes bb-shimmer{0%{background-position:200% center}100%{background-position:-200% center}}",
+      ].join("\n");
       document.head.appendChild(s);
     }
   }, []);
@@ -747,6 +819,26 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
   }, [dragging, shape]);
 
   const handleMouseUp = useCallback(() => setDragging(false), []);
+
+  // 3D tilt: track mouse over the preview container and tilt the badge element
+  const handle3DMouseMove = useCallback((e) => {
+    if (animEffect !== "3d" || !badgeRef.current || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = (e.clientX - cx) / (rect.width / 2);   // -1 to 1
+    const dy = (e.clientY - cy) / (rect.height / 2);
+    const rotY =  dx * 22;
+    const rotX = -dy * 22;
+    badgeRef.current.style.transform = `translate(-50%,-50%) perspective(400px) rotateY(${rotY}deg) rotateX(${rotX}deg) scale(1.05)`;
+    badgeRef.current.style.transition = "transform 0.05s linear";
+  }, [animEffect]);
+
+  const handle3DMouseLeave = useCallback(() => {
+    if (animEffect !== "3d" || !badgeRef.current) return;
+    badgeRef.current.style.transform = "translate(-50%,-50%)";
+    badgeRef.current.style.transition = "transform 0.35s ease";
+  }, [animEffect]);
 
   // Snap to corner (regular badges) or top/bottom edge (BAR), keeping badge fully inside the frame
   const snapToCorner = useCallback((key) => {
@@ -795,7 +887,20 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
     gradientEnabled, gradientColorEnd, gradientDirection,
     cpCorner,
     cpExpanded: shape !== "CORNER_POP" || previewHovered,
+    fontFamily, textTransform, borderWidth, borderColor, shadowStyle,
   });
+
+  // Computes CSS animation style for the badge based on animEffect
+  const buildAnimStyle = () => {
+    if (animEffect === "pulse") return { animation: `bb-pulse 1.6s ease-in-out infinite` };
+    if (animEffect === "glow") return { animation: `bb-glow 2s ease-in-out infinite` };
+    if (animEffect === "shimmer") return {
+      backgroundImage: `linear-gradient(120deg, ${color} 0%, ${color} 30%, #fff9 50%, ${color} 70%, ${color} 100%)`,
+      backgroundSize: "200% auto",
+      animation: `bb-shimmer 2.4s linear infinite`,
+    };
+    return {};
+  };
 
   // Computes overlay style for hover-based visibility (fade or slide)
   const SLIDE_OFFSET = { LEFT: "translateX(-300%)", RIGHT: "translateX(300%)", TOP: "translateY(-300%)", BOTTOM: "translateY(300%)" };
@@ -903,9 +1008,9 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
         <div style={{ width: "100%", maxWidth: 340 }}>
           <div
             ref={containerRef}
-            onMouseMove={handleMouseMove}
+            onMouseMove={(e) => { handleMouseMove(e); handle3DMouseMove(e); }}
             onMouseUp={handleMouseUp}
-            onMouseLeave={() => { handleMouseUp(); if (hoverOnly || slideIn) setPreviewHovered(false); }}
+            onMouseLeave={() => { handleMouseUp(); handle3DMouseLeave(); if (hoverOnly || slideIn) setPreviewHovered(false); }}
             onMouseEnter={() => { if (hoverOnly || slideIn) setPreviewHovered(true); }}
             style={{
               position: "relative",
@@ -937,11 +1042,12 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
               const badgeContent = iconDataUrl
                 ? <img src={iconDataUrl} alt="" style={{ width: "1.4em", height: "1.4em", objectFit: "contain", display: "block" }} />
                 : (label || "My Badge");
+              const animStyle = buildAnimStyle();
               if (shape === "CORNER_POP") return (
-                <div style={{ ...badgeStyle, ...buildVisStyle(badgeStyle.transform) }}>{badgeContent}</div>
+                <div style={{ ...badgeStyle, ...animStyle, ...buildVisStyle(badgeStyle.transform) }}>{badgeContent}</div>
               );
               if (shape === "BAR") return (
-                <div ref={badgeRef} onMouseDown={handleMouseDown} style={{ ...badgeStyle, ...buildVisStyle(badgeStyle.transform) }}>
+                <div ref={badgeRef} onMouseDown={handleMouseDown} style={{ ...badgeStyle, ...animStyle, ...buildVisStyle(badgeStyle.transform) }}>
                   {scrollingEnabled && !iconDataUrl ? (
                     <span style={{ display: "inline-block", whiteSpace: "nowrap", animation: `bb-marquee ${scrollSpeed}s linear infinite` }}>
                       {(() => { const seg = (label || "My Badge") + "\u00a0\u00a0·\u00a0\u00a0"; return seg.repeat(16); })()}
@@ -950,7 +1056,7 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
                 </div>
               );
               return (
-                <span ref={badgeRef} onMouseDown={handleMouseDown} style={{ ...badgeStyle, ...buildVisStyle(badgeStyle.transform) }}>
+                <span ref={badgeRef} onMouseDown={handleMouseDown} style={{ ...badgeStyle, ...animStyle, ...buildVisStyle(badgeStyle.transform) }}>
                   {badgeContent}
                 </span>
               );
@@ -1461,6 +1567,90 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
 
         </div>
 
+        {/* ── Design & Effects ── */}
+        <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ color: t.muted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.6px" }}>Design & Effects</div>
+
+          {/* Font family */}
+          <div>
+            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Font</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {[["system","Default"],["impact","Impact"],["georgia","Georgia"],["courier","Mono"],["trebuchet","Trebuchet"]].map(([val, lbl]) => (
+                <button key={val} onClick={() => setFontFamily(val)}
+                  style={{ padding: "5px 10px", fontSize: 11, borderRadius: 4, border: `1px solid ${fontFamily === val ? t.accent : t.border}`, background: fontFamily === val ? t.accent : t.btnBg, color: fontFamily === val ? t.accentText : t.btnColor, cursor: "pointer" }}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Text transform */}
+          <div>
+            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Text case</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[["none","Aa"],["uppercase","AA"],["capitalize","Aa Bb"],["lowercase","aa"]].map(([val, lbl]) => (
+                <button key={val} onClick={() => setTextTransform(val)}
+                  style={{ padding: "5px 10px", fontSize: 11, borderRadius: 4, border: `1px solid ${textTransform === val ? t.accent : t.border}`, background: textTransform === val ? t.accent : t.btnBg, color: textTransform === val ? t.accentText : t.btnColor, cursor: "pointer" }}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Border */}
+          <div>
+            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Border</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <input type="range" min={0} max={6} value={borderWidth} onChange={(e) => setBorderWidth(Number(e.target.value))}
+                style={{ flex: 1 }} />
+              <span style={{ color: t.muted, fontSize: 11, minWidth: 24 }}>{borderWidth}px</span>
+              {borderWidth > 0 && (
+                <input type="color" value={borderColor} onChange={(e) => setBorderColor(e.target.value)}
+                  style={{ width: 28, height: 28, border: "none", padding: 0, background: "none", cursor: "pointer", borderRadius: 4 }} />
+              )}
+            </div>
+          </div>
+
+          {/* Shadow */}
+          <div>
+            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Shadow</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[["none","None"],["soft","Soft"],["hard","Hard"],["glow","Glow"]].map(([val, lbl]) => (
+                <button key={val} onClick={() => setShadowStyle(val)}
+                  style={{ padding: "5px 10px", fontSize: 11, borderRadius: 4, border: `1px solid ${shadowStyle === val ? t.accent : t.border}`, background: shadowStyle === val ? t.accent : t.btnBg, color: shadowStyle === val ? t.accentText : t.btnColor, cursor: "pointer" }}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Animation effect */}
+          <div>
+            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Animation</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {[["none","None"],["pulse","Pulse"],["glow","Glow"],["shimmer","Shimmer"],["confetti","Confetti"],["3d","3D Tilt"]].map(([val, lbl]) => (
+                <button key={val} onClick={() => setAnimEffect(val)}
+                  style={{ padding: "5px 10px", fontSize: 11, borderRadius: 4, border: `1px solid ${animEffect === val ? t.accent : t.border}`, background: animEffect === val ? t.accent : t.btnBg, color: animEffect === val ? t.accentText : t.btnColor, cursor: "pointer" }}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+            {animEffect === "3d" && (
+              <div style={{ color: t.faint, fontSize: 10, marginTop: 4 }}>Hover over the preview to see the 3D tilt effect.</div>
+            )}
+          </div>
+
+          {/* Countdown toggle — only relevant when endsAt is set */}
+          {endsAt && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <input type="checkbox" id="showCountdown" checked={showCountdown} onChange={(e) => setShowCountdown(e.target.checked)} />
+              <label htmlFor="showCountdown" style={{ color: t.text, fontSize: 12, cursor: "pointer" }}>
+                Show live countdown instead of label
+              </label>
+            </div>
+          )}
+        </div>
+
         {/* CTA */}
         <div>
             <button
@@ -1498,6 +1688,13 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
                 fd.append("iconDataUrl", iconDataUrl || "");
                 fd.append("startsAt", startsAt);
                 fd.append("endsAt", endsAt);
+                fd.append("fontFamily", fontFamily);
+                fd.append("textTransform", textTransform);
+                fd.append("borderWidth", String(borderWidth));
+                fd.append("borderColor", borderColor);
+                fd.append("shadowStyle", shadowStyle);
+                fd.append("animEffect", animEffect);
+                fd.append("showCountdown", String(showCountdown));
                 fetcher.submit(fd, { method: "post" });
                 if (editingBadge) onEditDone();
               }}

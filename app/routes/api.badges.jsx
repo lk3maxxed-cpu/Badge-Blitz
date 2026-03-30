@@ -117,6 +117,14 @@ export async function loader({ request }) {
       scrollSpeed: b.scrollSpeed,
       stockThreshold: b.stockThreshold,
       iconDataUrl: b.iconDataUrl ?? null,
+      fontFamily: b.fontFamily,
+      textTransform: b.textTransform,
+      borderWidth: b.borderWidth,
+      borderColor: b.borderColor,
+      shadowStyle: b.shadowStyle,
+      animEffect: b.animEffect,
+      showCountdown: b.showCountdown,
+      endsAt: b.endsAt ? b.endsAt.toISOString() : null,
       targetType: (isLowStock && b.syncedTargetIds) || isCollection ? "SPECIFIC" : b.targetType,
       targetIds: isLowStock
         ? (b.syncedTargetIds ?? b.targetIds)
