@@ -4,7 +4,7 @@
 
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
-import { syncLowStockBadges } from "../lib/inventory.server";
+import { syncLowStockBadges, syncCollectionBadges } from "../lib/inventory.server";
 import { data, redirect } from "react-router";
 
 export async function loader({ request }) {
@@ -22,8 +22,11 @@ export async function action({ request }) {
   }
 
   try {
-    const { synced } = await syncLowStockBadges(admin, shopRecord);
-    return data({ success: true, synced });
+    const [{ synced: lowStockSynced }, { synced: collectionSynced }] = await Promise.all([
+      syncLowStockBadges(admin, shopRecord),
+      syncCollectionBadges(admin, shopRecord),
+    ]);
+    return data({ success: true, synced: lowStockSynced + collectionSynced });
   } catch (err) {
     console.error("[Badge Blitz] Manual sync error:", err);
     return data({ error: "Sync failed. Check server logs." }, { status: 500 });

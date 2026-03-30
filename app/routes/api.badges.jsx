@@ -82,31 +82,50 @@ export async function loader({ request }) {
     return data([], { headers: corsHeaders });
   }
 
-  const badges = shopRecord.badges.map((b) => ({
-    id: b.id,
-    type: b.type,
-    label: b.label,
-    color: b.color,
-    textColor: b.textColor,
-    shape: b.shape,
-    size: b.size,
-    edgeStyle: b.edgeStyle,
-    positionX: b.positionX,
-    positionY: b.positionY,
-    position: b.position,
-    gradientEnabled: b.gradientEnabled,
-    gradientColorEnd: b.gradientColorEnd,
-    gradientDirection: b.gradientDirection,
-    hoverOnly: b.hoverOnly,
-    hoverDuration: b.hoverDuration,
-    scrollingEnabled: b.scrollingEnabled,
-    scrollSpeed: b.scrollSpeed,
-    autoDiscount: b.autoDiscount,
-    stockThreshold: b.stockThreshold,
-    targetType: b.type === "LOW_STOCK" && b.syncedTargetIds ? "SPECIFIC" : b.targetType,
-    targetIds: b.type === "LOW_STOCK" ? (b.syncedTargetIds ?? b.targetIds) : b.targetIds,
-    priority: b.priority,
-  }));
+  // Filter out badges outside their scheduled window
+  const now = new Date();
+  const activeBadges = shopRecord.badges.filter((b) => {
+    if (b.startsAt && new Date(b.startsAt) > now) return false;
+    if (b.endsAt && new Date(b.endsAt) < now) return false;
+    return true;
+  });
+
+  const badges = activeBadges.map((b) => {
+    // Collection badges use syncedTargetIds as their effective product list
+    const isCollection = b.targetType === "COLLECTION";
+    const isLowStock = b.type === "LOW_STOCK";
+    return {
+      id: b.id,
+      type: b.type,
+      label: b.label,
+      color: b.color,
+      textColor: b.textColor,
+      shape: b.shape,
+      size: b.size,
+      edgeStyle: b.edgeStyle,
+      positionX: b.positionX,
+      positionY: b.positionY,
+      position: b.position,
+      gradientEnabled: b.gradientEnabled,
+      gradientColorEnd: b.gradientColorEnd,
+      gradientDirection: b.gradientDirection,
+      hoverOnly: b.hoverOnly,
+      hoverDuration: b.hoverDuration,
+      slideIn: b.slideIn,
+      slideFrom: b.slideFrom,
+      scrollingEnabled: b.scrollingEnabled,
+      scrollSpeed: b.scrollSpeed,
+      stockThreshold: b.stockThreshold,
+      iconDataUrl: b.iconDataUrl ?? null,
+      targetType: (isLowStock && b.syncedTargetIds) || isCollection ? "SPECIFIC" : b.targetType,
+      targetIds: isLowStock
+        ? (b.syncedTargetIds ?? b.targetIds)
+        : isCollection
+        ? (b.syncedTargetIds ?? null)
+        : b.targetIds,
+      priority: b.priority,
+    };
+  });
 
   return data(badges, {
     headers: {

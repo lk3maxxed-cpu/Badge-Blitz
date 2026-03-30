@@ -81,6 +81,12 @@ model Badge {
   scrollingEnabled Boolean @default(false) // BAR: animate text as infinite marquee
   scrollSpeed      Int     @default(20)    // BAR: marquee cycle duration in seconds (5–60; lower = faster)
 
+  startsAt      DateTime? // optional schedule start — badge inactive before this time
+  endsAt        DateTime? // optional schedule end   — badge inactive after this time
+
+  collectionIds String?   // comma-separated collection GIDs for targetType COLLECTION
+  iconDataUrl   String?   // base64 dataURL for custom PNG/SVG icon (replaces text label)
+
   active   Boolean @default(true)
   priority Int     @default(0)
 

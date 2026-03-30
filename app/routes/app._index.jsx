@@ -21,7 +21,7 @@ import db from "../db.server";
 
 // ── Loader ──────────────────────────────────────────────────
 export async function loader({ request }) {
-  const { session, billing } = await authenticate.admin(request);
+  const { session, billing, admin } = await authenticate.admin(request);
   const { shop } = session;
 
   // Sync billing status from Shopify on every dashboard load
@@ -45,14 +45,48 @@ export async function loader({ request }) {
 
   const badges = await db.badge.findMany({
     where: { shopId: shopRecord.id },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
   });
+
+  // Fetch total product count + theme extension status in parallel (both non-critical)
+  const EXT_UUID = "86fc0778-a9dd-715e-0846-a6675c2c69544ed3fb6a";
+  let totalProductCount = null;
+  let themeExtensionEnabled = null;
+  try {
+    const [countRes, themeRes] = await Promise.all([
+      admin.graphql(`#graphql query { productsCount { count } }`),
+      admin.graphql(`#graphql
+        query {
+          themes(first: 5, roles: [MAIN]) {
+            nodes {
+              id
+              role
+              files(filenames: ["config/settings_data.json"]) {
+                nodes { body { ... on OnlineStoreThemeFileBodyText { content } } }
+              }
+            }
+          }
+        }
+      `),
+    ]);
+    const countJson = await countRes.json();
+    totalProductCount = countJson.data?.productsCount?.count ?? null;
+
+    const themeJson = await themeRes.json();
+    const mainTheme = themeJson.data?.themes?.nodes?.find((t) => t.role === "MAIN");
+    const settingsContent = mainTheme?.files?.nodes?.[0]?.body?.content;
+    if (settingsContent) {
+      themeExtensionEnabled = settingsContent.includes(EXT_UUID);
+    }
+  } catch { /* non-critical */ }
 
   return data({
     shop,
     plan,
     badges,
     badgeCount: badges.length,
+    totalProductCount,
+    themeExtensionEnabled,
   });
 }
 
@@ -78,10 +112,12 @@ export async function action({ request }) {
     if (!label || !label.trim()) return data({ error: "Label is required." }, { status: 400 });
     const px = formData.get("px");
     const py = formData.get("py");
+    const startsAtRaw = formData.get("startsAt");
+    const endsAtRaw = formData.get("endsAt");
     await db.badge.create({
       data: {
         shopId: shopRecord.id,
-        type: "CUSTOM",
+        type: formData.get("type") || "CUSTOM",
         label: label.trim(),
         color: formData.get("color") || "#FF4136",
         textColor: formData.get("textColor") || "#FFFFFF",
@@ -101,9 +137,13 @@ export async function action({ request }) {
         scrollingEnabled: formData.get("scrollingEnabled") === "true",
         scrollSpeed: parseInt(formData.get("scrollSpeed") || "20", 10),
         autoDiscount: false,
-        stockThreshold: 5,
+        stockThreshold: parseInt(formData.get("stockThreshold") || "5", 10),
         targetType: formData.get("targetType") || "ALL",
         targetIds: formData.get("targetIds") || null,
+        collectionIds: formData.get("collectionIds") || null,
+        iconDataUrl: formData.get("iconDataUrl") || null,
+        startsAt: startsAtRaw ? new Date(startsAtRaw) : null,
+        endsAt: endsAtRaw ? new Date(endsAtRaw) : null,
         priority: 0,
         active: true,
       },
@@ -116,9 +156,12 @@ export async function action({ request }) {
     if (!label || !label.trim()) return data({ error: "Label is required." }, { status: 400 });
     const px = formData.get("px");
     const py = formData.get("py");
+    const startsAtRaw = formData.get("startsAt");
+    const endsAtRaw = formData.get("endsAt");
     await db.badge.update({
       where: { id: badgeId },
       data: {
+        type: formData.get("type") || "CUSTOM",
         label: label.trim(),
         color: formData.get("color") || "#FF4136",
         textColor: formData.get("textColor") || "#FFFFFF",
@@ -137,8 +180,13 @@ export async function action({ request }) {
         slideFrom: formData.get("slideFrom") || "LEFT",
         scrollingEnabled: formData.get("scrollingEnabled") === "true",
         scrollSpeed: parseInt(formData.get("scrollSpeed") || "20", 10),
+        stockThreshold: parseInt(formData.get("stockThreshold") || "5", 10),
         targetType: formData.get("targetType") || "ALL",
         targetIds: formData.get("targetIds") || null,
+        collectionIds: formData.get("collectionIds") || null,
+        iconDataUrl: formData.get("iconDataUrl") || null,
+        startsAt: startsAtRaw ? new Date(startsAtRaw) : null,
+        endsAt: endsAtRaw ? new Date(endsAtRaw) : null,
       },
     });
     return data({ success: true });
@@ -169,6 +217,29 @@ export async function action({ request }) {
         },
       });
     }));
+    return data({ success: true });
+  }
+
+  if (intent === "reorder") {
+    const direction = formData.get("direction"); // "up" | "down"
+    const { shop } = session;
+    const shopRecord = await db.shop.findUnique({ where: { shopDomain: shop } });
+    if (!shopRecord) return data({ error: "Shop not found." }, { status: 400 });
+    const allBadges = await db.badge.findMany({
+      where: { shopId: shopRecord.id },
+      orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
+    });
+    const idx = allBadges.findIndex((b) => b.id === badgeId);
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (idx === -1 || swapIdx < 0 || swapIdx >= allBadges.length) return data({ success: true });
+    const a = allBadges[idx];
+    const b = allBadges[swapIdx];
+    const aP = a.priority ?? 0;
+    const bP = b.priority ?? 0;
+    await Promise.all([
+      db.badge.update({ where: { id: a.id }, data: { priority: bP === aP ? (direction === "up" ? aP + 1 : aP - 1) : bP } }),
+      db.badge.update({ where: { id: b.id }, data: { priority: bP === aP ? (direction === "up" ? bP - 1 : bP + 1) : aP } }),
+    ]);
     return data({ success: true });
   }
 
@@ -528,8 +599,18 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
   const [scrollSpeed, setScrollSpeed] = useState(20);
   const [targetType, setTargetType] = useState("ALL");
   const [targetIds, setTargetIds] = useState("");
+  const [collectionIds, setCollectionIds] = useState("");
+  const [badgeType, setBadgeType] = useState("CUSTOM");
+  const [stockThreshold, setStockThreshold] = useState(5);
+  const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
+  const [iconDataUrl, setIconDataUrl] = useState(null);
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const iconFileInputRef = useRef(null);
+  const csvFileInputRef = useRef(null);
+  const productFetcher = useFetcher();
+  const [productIdInput, setProductIdInput] = useState("");
 
   const [rawImage, setRawImage] = useState(null);
 
@@ -553,6 +634,12 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
     setScrollSpeed(editingBadge.scrollSpeed || 20);
     setTargetType(editingBadge.targetType || "ALL");
     setTargetIds(editingBadge.targetIds || "");
+    setCollectionIds(editingBadge.collectionIds || "");
+    setBadgeType(editingBadge.type || "CUSTOM");
+    setStockThreshold(editingBadge.stockThreshold || 5);
+    setIconDataUrl(editingBadge.iconDataUrl || null);
+    setStartsAt(editingBadge.startsAt ? new Date(editingBadge.startsAt).toISOString().slice(0, 16) : "");
+    setEndsAt(editingBadge.endsAt ? new Date(editingBadge.endsAt).toISOString().slice(0, 16) : "");
     if (editingBadge.positionX != null && editingBadge.positionY != null) {
       setPos({ x: editingBadge.positionX, y: editingBadge.positionY });
     } else {
@@ -565,12 +652,46 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
     }
   }, [editingBadge]);
 
+  // When product image loads via productFetcher, push it into the preview
+  useEffect(() => {
+    if (productFetcher.data?.imageUrl) onImageChange(productFetcher.data.imageUrl);
+  }, [productFetcher.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleImageUpload = useCallback((e) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => setRawImage(ev.target.result);
     reader.readAsDataURL(file);
+    e.target.value = "";
+  }, []);
+
+  const handleIconUpload = useCallback((e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 150_000) { alert("Icon file too large — please use an image under 150 KB."); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => setIconDataUrl(ev.target.result);
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }, []);
+
+  const handleCsvUpload = useCallback((e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target.result;
+      const ids = text.split(/[\r\n,]+/)
+        .map((s) => s.trim().replace(/^gid:\/\/shopify\/Product\//i, "").replace(/[^0-9]/g, ""))
+        .filter((s) => s.length >= 8);
+      const deduped = [...new Set(ids)];
+      setTargetIds((prev) => {
+        const existing = prev.split(",").map((s) => s.trim()).filter(Boolean);
+        return [...new Set([...existing, ...deduped])].join(", ");
+      });
+    };
+    reader.readAsText(file);
     e.target.value = "";
   }, []);
 
@@ -812,23 +933,28 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
             )}
 
             {/* Badge */}
-            {shape === "CORNER_POP" ? (
-              <div style={{ ...badgeStyle, ...buildVisStyle(badgeStyle.transform) }}>
-                {label || "My Badge"}
-              </div>
-            ) : shape === "BAR" ? (
-              <div ref={badgeRef} onMouseDown={handleMouseDown} style={{ ...badgeStyle, ...buildVisStyle(badgeStyle.transform) }}>
-                {scrollingEnabled ? (
-                  <span style={{ display: "inline-block", whiteSpace: "nowrap", animation: `bb-marquee ${scrollSpeed}s linear infinite` }}>
-                    {(() => { const seg = (label || "My Badge") + "\u00a0\u00a0·\u00a0\u00a0"; return seg.repeat(16); })()}
-                  </span>
-                ) : (label || "My Badge")}
-              </div>
-            ) : (
-              <span ref={badgeRef} onMouseDown={handleMouseDown} style={{ ...badgeStyle, ...buildVisStyle(badgeStyle.transform) }}>
-                {label || "My Badge"}
-              </span>
-            )}
+            {(() => {
+              const badgeContent = iconDataUrl
+                ? <img src={iconDataUrl} alt="" style={{ width: "1.4em", height: "1.4em", objectFit: "contain", display: "block" }} />
+                : (label || "My Badge");
+              if (shape === "CORNER_POP") return (
+                <div style={{ ...badgeStyle, ...buildVisStyle(badgeStyle.transform) }}>{badgeContent}</div>
+              );
+              if (shape === "BAR") return (
+                <div ref={badgeRef} onMouseDown={handleMouseDown} style={{ ...badgeStyle, ...buildVisStyle(badgeStyle.transform) }}>
+                  {scrollingEnabled && !iconDataUrl ? (
+                    <span style={{ display: "inline-block", whiteSpace: "nowrap", animation: `bb-marquee ${scrollSpeed}s linear infinite` }}>
+                      {(() => { const seg = (label || "My Badge") + "\u00a0\u00a0·\u00a0\u00a0"; return seg.repeat(16); })()}
+                    </span>
+                  ) : badgeContent}
+                </div>
+              );
+              return (
+                <span ref={badgeRef} onMouseDown={handleMouseDown} style={{ ...badgeStyle, ...buildVisStyle(badgeStyle.transform) }}>
+                  {badgeContent}
+                </span>
+              );
+            })()}
 
             {/* Hover hints */}
             {(hoverOnly || slideIn || shape === "CORNER_POP") && !previewHovered && (
@@ -843,14 +969,10 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
 
           </div>
 
-          {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
-            style={{ display: "none" }}
-          />
+          {/* Hidden file inputs */}
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{ display: "none" }} />
+          <input ref={iconFileInputRef} type="file" accept="image/png,image/svg+xml,image/gif,image/webp" onChange={handleIconUpload} style={{ display: "none" }} />
+          <input ref={csvFileInputRef} type="file" accept=".csv,text/csv" onChange={handleCsvUpload} style={{ display: "none" }} />
 
           {/* Upload / change / clear — lives below the preview, never over the image */}
           <div style={{ marginTop: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -885,6 +1007,38 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
               </div>
             )}
           </div>
+          {/* Icon badge upload */}
+          <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ color: t.faint, fontSize: 10, flexShrink: 0 }}>Icon badge:</span>
+            {iconDataUrl ? (
+              <>
+                <img src={iconDataUrl} alt="" style={{ width: 18, height: 18, objectFit: "contain", borderRadius: 2 }} />
+                <button onClick={() => iconFileInputRef.current?.click()} style={{ background: t.btnBg, color: t.btnColor, border: `1px solid ${t.btnBorder}`, borderRadius: 3, padding: "2px 7px", fontSize: 10, cursor: "pointer" }}>Change</button>
+                <button onClick={() => setIconDataUrl(null)} style={{ background: t.btnBg, color: t.btnMutedColor, border: `1px solid ${t.btnBorder}`, borderRadius: 3, padding: "2px 7px", fontSize: 10, cursor: "pointer" }}>✕ Remove</button>
+              </>
+            ) : (
+              <button onClick={() => iconFileInputRef.current?.click()} style={{ background: "transparent", color: t.uploadColor, border: `1px dashed ${t.uploadBorder}`, borderRadius: 4, padding: "2px 8px", fontSize: 10, cursor: "pointer" }}>+ Upload icon (PNG/SVG)</button>
+            )}
+          </div>
+
+          {/* Load real product preview */}
+          <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ color: t.faint, fontSize: 10, flexShrink: 0 }}>Preview product:</span>
+            <input
+              value={productIdInput}
+              onChange={(e) => setProductIdInput(e.target.value)}
+              placeholder="Product ID"
+              style={{ flex: 1, background: t.inputBg, border: `1px solid ${t.inputBorder}`, borderRadius: 4, padding: "3px 7px", color: t.inputColor, fontSize: 10, outline: "none" }}
+            />
+            <button
+              onClick={() => { if (productIdInput.trim()) productFetcher.load(`/api/product-image?productId=${encodeURIComponent(productIdInput.trim())}`); }}
+              disabled={productFetcher.state !== "idle"}
+              style={{ background: t.btnBg, color: t.btnColor, border: `1px solid ${t.btnBorder}`, borderRadius: 3, padding: "3px 8px", fontSize: 10, cursor: "pointer", whiteSpace: "nowrap" }}
+            >
+              {productFetcher.state !== "idle" ? "Loading…" : "Load"}
+            </button>
+          </div>
+
           <div style={{ marginTop: 8, height: 8, background: t.surface, borderRadius: 3, width: "70%" }} />
           <div style={{ marginTop: 6, height: 8, background: t.surface, borderRadius: 3, width: "45%" }} />
         </div>
@@ -1223,39 +1377,89 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
 
         {/* Targeting */}
         <div style={{ paddingTop: 16, borderTop: `1px solid ${t.border}` }}>
-            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>
-              Apply to
+
+          {/* Badge type */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>Badge type</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {chip(badgeType === "CUSTOM", () => setBadgeType("CUSTOM"), "✏ Custom")}
+              {chip(badgeType === "LOW_STOCK", () => setBadgeType("LOW_STOCK"), "📦 Low Stock")}
             </div>
-            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+            {badgeType === "LOW_STOCK" && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
+                  Show when stock ≤ {stockThreshold} units
+                </div>
+                <input type="range" min={1} max={50} value={stockThreshold} onChange={(e) => setStockThreshold(Number(e.target.value))}
+                  style={{ width: "100%", accentColor: t.accent, cursor: "pointer" }} />
+                <div style={{ display: "flex", justifyContent: "space-between", color: t.faint, fontSize: 10, marginTop: 2 }}>
+                  <span>1 unit</span><span>50 units</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Apply to */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>Apply to</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
               {chip(targetType === "ALL", () => setTargetType("ALL"), "All products")}
               {chip(targetType === "SPECIFIC", () => setTargetType("SPECIFIC"), "Specific products")}
+              {chip(targetType === "COLLECTION", () => setTargetType("COLLECTION"), "Collections")}
             </div>
             {targetType === "SPECIFIC" && (
               <div>
-                <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
-                  Product IDs
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Product IDs</div>
+                  <button onClick={() => csvFileInputRef.current?.click()} style={{ background: "transparent", color: t.uploadColor, border: `1px dashed ${t.uploadBorder}`, borderRadius: 3, padding: "2px 7px", fontSize: 9, cursor: "pointer" }}>
+                    + Import CSV
+                  </button>
                 </div>
                 <textarea
                   value={targetIds}
                   onChange={(e) => setTargetIds(e.target.value)}
                   placeholder="Comma-separated Shopify product IDs&#10;e.g. 1234567890, 9876543210"
                   rows={3}
-                  style={{
-                    width: "100%",
-                    background: t.inputBg,
-                    color: t.text,
-                    border: `1px solid ${t.border}`,
-                    borderRadius: 6,
-                    padding: "8px 10px",
-                    fontSize: 12,
-                    resize: "vertical",
-                    fontFamily: "monospace",
-                    boxSizing: "border-box",
-                  }}
+                  style={{ width: "100%", background: t.inputBg, color: t.text, border: `1px solid ${t.border}`, borderRadius: 6, padding: "8px 10px", fontSize: 12, resize: "vertical", fontFamily: "monospace", boxSizing: "border-box" }}
                 />
               </div>
             )}
+            {targetType === "COLLECTION" && (
+              <div>
+                <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Collection IDs</div>
+                <textarea
+                  value={collectionIds}
+                  onChange={(e) => setCollectionIds(e.target.value)}
+                  placeholder="Comma-separated Shopify collection IDs&#10;e.g. 123456789, 987654321"
+                  rows={2}
+                  style={{ width: "100%", background: t.inputBg, color: t.text, border: `1px solid ${t.border}`, borderRadius: 6, padding: "8px 10px", fontSize: 12, resize: "vertical", fontFamily: "monospace", boxSizing: "border-box" }}
+                />
+                <div style={{ color: t.faint, fontSize: 10, marginTop: 4 }}>Products in these collections sync automatically when you hit "Sync Inventory".</div>
+              </div>
+            )}
           </div>
+
+          {/* Schedule */}
+          <div>
+            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>Schedule (optional)</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div>
+                <div style={{ color: t.faint, fontSize: 10, marginBottom: 4 }}>Start</div>
+                <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)}
+                  style={{ width: "100%", background: t.inputBg, border: `1px solid ${t.inputBorder}`, borderRadius: 4, padding: "6px 8px", color: t.inputColor, fontSize: 11, outline: "none", boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <div style={{ color: t.faint, fontSize: 10, marginBottom: 4 }}>End</div>
+                <input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)}
+                  style={{ width: "100%", background: t.inputBg, border: `1px solid ${t.inputBorder}`, borderRadius: 4, padding: "6px 8px", color: t.inputColor, fontSize: 11, outline: "none", boxSizing: "border-box" }} />
+              </div>
+            </div>
+            {(startsAt || endsAt) && (
+              <button onClick={() => { setStartsAt(""); setEndsAt(""); }} style={{ marginTop: 6, background: "transparent", color: t.muted, border: "none", fontSize: 10, cursor: "pointer", padding: 0 }}>✕ Clear schedule</button>
+            )}
+          </div>
+
+        </div>
 
         {/* CTA */}
         <div>
@@ -1286,8 +1490,14 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
                 fd.append("slideFrom", slideFrom);
                 fd.append("scrollingEnabled", String(scrollingEnabled));
                 fd.append("scrollSpeed", String(scrollSpeed));
+                fd.append("type", badgeType);
+                fd.append("stockThreshold", String(stockThreshold));
                 fd.append("targetType", targetType);
                 fd.append("targetIds", targetIds);
+                fd.append("collectionIds", collectionIds);
+                fd.append("iconDataUrl", iconDataUrl || "");
+                fd.append("startsAt", startsAt);
+                fd.append("endsAt", endsAt);
                 fetcher.submit(fd, { method: "post" });
                 if (editingBadge) onEditDone();
               }}
@@ -1470,7 +1680,63 @@ function ProductBadgeManager({ badges, isPro }) {
 // ── MyBadgeCard ───────────────────────────────────────────────
 const CARD_SLIDE_OFFSET = { LEFT: "translateX(-300%)", RIGHT: "translateX(300%)", TOP: "translateY(-300%)", BOTTOM: "translateY(300%)" };
 
-function MyBadgeCard({ badge, previewImage, fetcher, onEdit }) {
+// ── OnboardingChecklist ───────────────────────────────────────
+function OnboardingChecklist({ shop, themeExtensionEnabled }) {
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    if (typeof localStorage !== "undefined" && localStorage.getItem("bb-onboarding-dismissed")) {
+      setDismissed(true);
+    }
+  }, []);
+
+  if (dismissed) return null;
+
+  const hasBadges = false; // always false when shown (we only render this from the empty state)
+  const steps = [
+    { done: hasBadges, label: "Create your first badge", hint: "Use the builder above and click \"Create custom badge\"." },
+    { done: themeExtensionEnabled === true, label: "Enable the Badge Blitz theme extension", hint: "Go to your theme customizer → App embeds → turn on Badge Blitz.", link: `https://${shop}/admin/themes/current/editor?context=apps` },
+    { done: hasBadges && themeExtensionEnabled === true, label: "Go live 🎉", hint: "Your badges will appear on product cards across your store automatically." },
+  ];
+
+  return (
+    <div style={{ border: "1.5px solid #e1e3e5", borderRadius: 12, padding: "28px 32px", background: "#fff", position: "relative" }}>
+      <button
+        onClick={() => { localStorage.setItem("bb-onboarding-dismissed", "1"); setDismissed(true); }}
+        style={{ position: "absolute", top: 16, right: 16, background: "transparent", border: "none", cursor: "pointer", color: "#999", fontSize: 16, lineHeight: 1 }}
+        title="Dismiss"
+      >✕</button>
+      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Get started with Badge Blitz</div>
+      <div style={{ fontSize: 13, color: "#888", marginBottom: 20 }}>3 steps to your first live badge</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {steps.map((s, i) => (
+          <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: "50%", flexShrink: 0, marginTop: 1,
+              background: s.done ? "#000" : "#f4f4f5",
+              border: s.done ? "none" : "1.5px solid #d1d5db",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              {s.done
+                ? <span style={{ color: "#fff", fontSize: 12 }}>✓</span>
+                : <span style={{ color: "#aaa", fontSize: 11, fontWeight: 700 }}>{i + 1}</span>
+              }
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: s.done ? "#aaa" : "#111", textDecoration: s.done ? "line-through" : "none" }}>{s.label}</div>
+              <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{s.hint}</div>
+              {s.link && !s.done && (
+                <a href={s.link} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#000", fontWeight: 600, marginTop: 4, display: "inline-block" }}>Open theme editor →</a>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MyBadgeCard({ badge, previewImage, fetcher, onEdit, isFirst, isLast, totalProductCount }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [hovered, setHovered] = useState(false);
 
@@ -1560,7 +1826,19 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit }) {
               </div>
             );
           }
-          return <span style={{ ...badgeStyle, ...visStyle }}>{badge.label}</span>;
+          const badgeContent = badge.iconDataUrl
+            ? <img src={badge.iconDataUrl} alt="" style={{ width: "1.4em", height: "1.4em", objectFit: "contain", display: "block" }} />
+            : badge.label;
+          if (badge.shape === "BAR" && badge.scrollingEnabled && !badge.iconDataUrl) {
+            return (
+              <div style={{ ...badgeStyle, overflow: "hidden", ...visStyle }}>
+                <span style={{ display: "inline-block", whiteSpace: "nowrap", animation: `bb-marquee ${badge.scrollSpeed || 20}s linear infinite` }}>
+                  {(() => { const seg = badge.label + "\u00a0\u00a0·\u00a0\u00a0"; return seg.repeat(16); })()}
+                </span>
+              </div>
+            );
+          }
+          return <span style={{ ...badgeStyle, ...visStyle }}>{badgeContent}</span>;
         })()}
         {!badge.active && (
           <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.55)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1584,11 +1862,41 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit }) {
             {badge.active ? "Active" : "Inactive"}
           </span>
         </div>
-        <div style={{ fontSize: 11, color: "#999", marginBottom: 4 }}>
+        <div style={{ fontSize: 11, color: "#999", marginBottom: 2 }}>
           {badge.type.replace(/_/g, " ")} · {badge.shape.replace(/_/g, " ")}
         </div>
 
-        <div style={{ display: "flex", gap: 6, marginTop: "auto", paddingTop: 8, flexWrap: "wrap" }}>
+        {/* Analytics: product count */}
+        <div style={{ fontSize: 11, color: "#aaa", marginBottom: 4 }}>
+          {badge.targetType === "ALL"
+            ? totalProductCount != null ? `${totalProductCount} products` : "All products"
+            : badge.targetType === "COLLECTION"
+            ? (() => { const n = badge.syncedTargetIds?.split(",").filter(Boolean).length ?? 0; return `${n} products (synced)`; })()
+            : badge.type === "LOW_STOCK"
+            ? (() => { const n = badge.syncedTargetIds?.split(",").filter(Boolean).length ?? 0; return `${n} low-stock products`; })()
+            : (() => { const n = badge.targetIds?.split(",").filter(Boolean).length ?? 0; return `${n} product${n !== 1 ? "s" : ""} targeted`; })()
+          }
+          {(badge.startsAt || badge.endsAt) && (
+            <span style={{ marginLeft: 6, color: "#bbb" }}>· 📅 Scheduled</span>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: 6, marginTop: "auto", paddingTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+          {/* Priority reorder */}
+          <div style={{ display: "flex", gap: 2 }}>
+            <button
+              disabled={isFirst}
+              onClick={() => fetcher.submit({ intent: "reorder", badgeId: badge.id, direction: "up" }, { method: "post" })}
+              style={{ background: "transparent", border: "1px solid #e1e3e5", borderRadius: 3, width: 24, height: 24, cursor: isFirst ? "default" : "pointer", color: isFirst ? "#ddd" : "#666", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}
+              title="Move up (higher priority)"
+            >↑</button>
+            <button
+              disabled={isLast}
+              onClick={() => fetcher.submit({ intent: "reorder", badgeId: badge.id, direction: "down" }, { method: "post" })}
+              style={{ background: "transparent", border: "1px solid #e1e3e5", borderRadius: 3, width: 24, height: 24, cursor: isLast ? "default" : "pointer", color: isLast ? "#ddd" : "#666", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}
+              title="Move down (lower priority)"
+            >↓</button>
+          </div>
           <Button size="slim" onClick={() => onEdit(badge)}>Edit</Button>
           <Button
             size="slim"
@@ -1619,7 +1927,7 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit }) {
 
 // ── Dashboard ────────────────────────────────────────────────
 export default function Dashboard() {
-  const { shop, plan, badges, badgeCount } = useLoaderData();
+  const { shop, plan, badges, badgeCount, totalProductCount, themeExtensionEnabled } = useLoaderData();
   const fetcher = useFetcher();
   const syncFetcher = useFetcher();
   const [previewImage, setPreviewImage] = useState(null);
@@ -1725,6 +2033,17 @@ export default function Dashboard() {
             </Banner>
           </Layout.Section>
         )}
+        {themeExtensionEnabled === false && (
+          <Layout.Section>
+            <Banner
+              title="Badge Blitz theme extension is not enabled"
+              tone="warning"
+              action={{ content: "Open theme editor", url: `https://${shop}/admin/themes/current/editor?context=apps`, target: "_blank" }}
+            >
+              Your badges won't appear on your storefront until you enable the app embed in your theme customizer under App embeds.
+            </Banner>
+          </Layout.Section>
+        )}
 
         {/* Custom badge builder */}
         <Layout.Section>
@@ -1754,24 +2073,18 @@ export default function Dashboard() {
               </InlineStack>
 
               {badges.length === 0 ? (
-                <div style={{
-                  border: "2px dashed #e1e3e5",
-                  borderRadius: 12,
-                  padding: "48px 24px",
-                  textAlign: "center",
-                  color: "#8c9196",
-                }}>
-                  <Text variant="headingMd" tone="subdued">No badges yet</Text>
-                  <Text tone="subdued" variant="bodySm">Configure your badge in the builder above and click "Create custom badge" to get started.</Text>
-                </div>
+                <OnboardingChecklist shop={shop} themeExtensionEnabled={themeExtensionEnabled} />
               ) : (
                 <InlineGrid columns={{ xs: 2, sm: 3, md: 3 }} gap="400">
-                  {badges.map((badge) => (
+                  {badges.map((badge, idx) => (
                     <MyBadgeCard
                       key={badge.id}
                       badge={badge}
                       previewImage={previewImage}
                       fetcher={fetcher}
+                      isFirst={idx === 0}
+                      isLast={idx === badges.length - 1}
+                      totalProductCount={totalProductCount}
                       onEdit={(b) => {
                         setEditingBadge(b);
                         builderRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });

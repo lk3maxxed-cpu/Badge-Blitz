@@ -94,6 +94,66 @@ export async function getProductGidFromInventoryItem(admin, inventoryItemId) {
   }
 }
 
+const GET_COLLECTION_PRODUCTS_PAGE = `#graphql
+  query GetCollectionProducts($id: ID!, $cursor: String) {
+    collection(id: $id) {
+      products(first: 50, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes { id }
+      }
+    }
+  }
+`;
+
+// Full sync for a shop: resolves collection IDs → product GIDs for COLLECTION badges
+export async function syncCollectionBadges(admin, shopRecord) {
+  const badges = await db.badge.findMany({
+    where: { shopId: shopRecord.id, targetType: "COLLECTION" },
+  });
+
+  if (!badges.length) return { synced: 0 };
+
+  let synced = 0;
+
+  for (const badge of badges) {
+    if (!badge.collectionIds) continue;
+    const collIds = badge.collectionIds.split(",").map((s) => s.trim()).filter(Boolean);
+    const productIds = new Set();
+
+    for (const rawId of collIds) {
+      const gid = rawId.startsWith("gid://")
+        ? rawId
+        : `gid://shopify/Collection/${rawId}`;
+
+      let cursor = null;
+      let hasNextPage = true;
+      while (hasNextPage) {
+        try {
+          const res = await admin.graphql(GET_COLLECTION_PRODUCTS_PAGE, {
+            variables: { id: gid, cursor },
+          });
+          const json = await res.json();
+          const conn = json.data?.collection?.products;
+          if (!conn) break;
+          conn.nodes.forEach((p) => productIds.add(p.id));
+          hasNextPage = conn.pageInfo.hasNextPage;
+          cursor = conn.pageInfo.endCursor;
+        } catch {
+          break;
+        }
+      }
+    }
+
+    await db.badge.update({
+      where: { id: badge.id },
+      data: { syncedTargetIds: productIds.size ? [...productIds].join(",") : null },
+    });
+    synced++;
+  }
+
+  return { synced };
+}
+
 // Full sync for a shop: updates syncedTargetIds on all LOW_STOCK badges
 export async function syncLowStockBadges(admin, shopRecord) {
   const badges = await db.badge.findMany({
