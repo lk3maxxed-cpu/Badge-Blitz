@@ -1475,12 +1475,13 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit }) {
   const badgeStyle = badge.shape === "BAR" ? {
     position: "absolute",
     left: 0, right: 0, width: "100%",
-    top: badge.position?.includes("BOTTOM") ? "auto" : 0,
-    bottom: badge.position?.includes("BOTTOM") ? 0 : "auto",
+    top: badge.positionY != null ? `${badge.positionY}%` : (badge.position?.includes("BOTTOM") ? "auto" : 0),
+    bottom: badge.positionY != null ? "auto" : (badge.position?.includes("BOTTOM") ? 0 : "auto"),
+    transform: badge.positionY != null ? "translateY(-50%)" : "none",
     background: bg, color: badge.textColor,
     fontSize: badge.size || 11, fontWeight: 700,
-    padding: "5px 8px", textAlign: "center",
-    letterSpacing: "0.4px",
+    padding: "7px 0", textAlign: "center",
+    letterSpacing: "0.4px", overflow: "hidden",
   } : {
     position: "absolute",
     top: badge.positionY != null ? `${badge.positionY}%` : (badge.position?.includes("BOTTOM") ? "auto" : 10),
@@ -1490,11 +1491,15 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit }) {
     transform: badge.positionX != null ? "translate(-50%, -50%)" : "none",
     background: bg, color: badge.textColor,
     fontSize: badge.size || 11, fontWeight: 700,
-    letterSpacing: "0.4px", lineHeight: 1, whiteSpace: "nowrap",
-    padding: badge.shape === "PILL" ? "4px 10px" : badge.shape === "CIRCLE" ? "0" : badge.shape === "RIBBON" ? "4px 12px 4px 8px" : "4px 8px",
+    letterSpacing: "0.4px", lineHeight: 1.2, whiteSpace: "nowrap",
+    padding: badge.shape === "CIRCLE"
+      ? `${Math.round((badge.size || 11) * 0.6)}px`
+      : badge.shape === "PILL" ? "4px 10px"
+      : badge.shape === "RIBBON" ? "4px 12px 4px 8px"
+      : "4px 8px",
     borderRadius: badge.shape === "PILL" ? 999 : badge.shape === "CIRCLE" ? "50%" : badge.shape === "SQUARE" ? 4 : badge.shape === "RIBBON" ? "0 4px 4px 0" : 0,
-    width: badge.shape === "CIRCLE" ? 36 : "auto",
-    height: badge.shape === "CIRCLE" ? 36 : "auto",
+    aspectRatio: badge.shape === "CIRCLE" ? "1" : "auto",
+    overflow: badge.shape === "CIRCLE" ? "hidden" : "visible",
     display: badge.shape === "CIRCLE" ? "flex" : "block",
     alignItems: badge.shape === "CIRCLE" ? "center" : "unset",
     justifyContent: badge.shape === "CIRCLE" ? "center" : "unset",
