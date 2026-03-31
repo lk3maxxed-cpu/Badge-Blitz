@@ -1153,7 +1153,7 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
       {/* ── Controls — 2-column grid ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
 
-        {/* Left: Label, Shape, Position */}
+        {/* Left: Appearance */}
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
 
           {/* Label */}
@@ -1218,6 +1218,92 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
             </div>
           </div>
 
+          {/* Gradient */}
+          <div>
+            {label_("Fill")}
+            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+              {chip(!gradientEnabled, () => setGradientEnabled(false), "■ Solid")}
+              {chip(gradientEnabled, () => setGradientEnabled(true), "◧ Gradient")}
+            </div>
+
+            {gradientEnabled && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{
+                  height: 10, borderRadius: 999,
+                  background: `linear-gradient(to right, ${color}, ${gradientColorEnd})`,
+                  border: `1px solid ${t.gradientStripBorder}`,
+                }} />
+                <div>
+                  <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>End color</div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                    {COLOR_PRESETS.map((c) => (
+                      <button key={c} onClick={() => setGradientColorEnd(c)} style={{ width: 24, height: 24, borderRadius: "50%", background: c, border: gradientColorEnd === c ? `2px solid ${t.swatchActive}` : `2px solid ${t.swatchInactive}`, cursor: "pointer", padding: 0, flexShrink: 0 }} />
+                    ))}
+                    <input type="color" value={gradientColorEnd} onChange={(e) => setGradientColorEnd(e.target.value)} style={{ width: 24, height: 24, borderRadius: "50%", border: "none", cursor: "pointer", padding: 0, background: "none" }} title="Custom end color" />
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Direction</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 32px)", gap: 4 }}>
+                    {GRADIENT_DIRECTIONS.map((d) => (
+                      <button key={d.value} onClick={() => setGradientDirection(d.value)} title={d.value}
+                        style={{
+                          width: 32, height: 32, fontSize: 14,
+                          background: gradientDirection === d.value ? t.dirBtnActive : t.dirBtnInactive,
+                          color: gradientDirection === d.value ? t.dirBtnActiveColor : t.dirBtnInactiveColor,
+                          border: gradientDirection === d.value ? `2px solid ${t.dirBtnBorderActive}` : `2px solid ${t.dirBtnBorderInactive}`,
+                          borderRadius: 4, cursor: "pointer",
+                        }}
+                      >{d.label}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Font family */}
+          <div>
+            {label_("Font")}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {[["system","Default"],["impact","Impact"],["georgia","Georgia"],["courier","Mono"],["trebuchet","Trebuchet"]].map(([val, lbl]) => (
+                <button key={val} onClick={() => setFontFamily(val)}
+                  style={{ padding: "5px 10px", fontSize: 11, borderRadius: 4, border: `1px solid ${fontFamily === val ? t.accent : t.border}`, background: fontFamily === val ? t.accent : t.btnBg, color: fontFamily === val ? t.accentText : t.btnColor, cursor: "pointer" }}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Text case */}
+          <div>
+            {label_("Text case")}
+            <div style={{ display: "flex", gap: 6 }}>
+              {[["none","Aa"],["uppercase","AA"],["capitalize","Aa Bb"],["lowercase","aa"]].map(([val, lbl]) => (
+                <button key={val} onClick={() => setTextTransform(val)}
+                  style={{ padding: "5px 10px", fontSize: 11, borderRadius: 4, border: `1px solid ${textTransform === val ? t.accent : t.border}`, background: textTransform === val ? t.accent : t.btnBg, color: textTransform === val ? t.accentText : t.btnColor, cursor: "pointer" }}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          </div>
+
+        </div>
+
+        {/* Right: Layout, Behavior, Effects */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+
+          {/* Size */}
+          <div>
+            {label_(`Size — ${size}px`)}
+            <input type="range" min={9} max={24} value={size}
+              onChange={(e) => setSize(Number(e.target.value))}
+              style={{ width: "100%", accentColor: t.accent, cursor: "pointer" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", color: t.faint, fontSize: 10, marginTop: 2 }}>
+              <span>Small</span><span>Large</span>
+            </div>
+          </div>
+
           {/* Edge style — circles only */}
           {shape === "CIRCLE" && (
             <div>
@@ -1229,146 +1315,54 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
             </div>
           )}
 
-          {/* Gradient */}
-          <div>
-            {label_("Fill")}
-            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-              {chip(!gradientEnabled, () => setGradientEnabled(false), "■ Solid")}
-              {chip(gradientEnabled, () => setGradientEnabled(true), "◧ Gradient")}
-            </div>
-
-            {gradientEnabled && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {/* Gradient preview strip */}
-                <div style={{
-                  height: 10,
-                  borderRadius: 999,
-                  background: `linear-gradient(to right, ${color}, ${gradientColorEnd})`,
-                  border: `1px solid ${t.gradientStripBorder}`,
-                }} />
-
-                {/* End colour */}
-                <div>
-                  <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>End color</div>
-                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                    {COLOR_PRESETS.map((c) => (
-                      <button key={c} onClick={() => setGradientColorEnd(c)} style={{ width: 24, height: 24, borderRadius: "50%", background: c, border: gradientColorEnd === c ? `2px solid ${t.swatchActive}` : `2px solid ${t.swatchInactive}`, cursor: "pointer", padding: 0, flexShrink: 0 }} />
-                    ))}
-                    <input type="color" value={gradientColorEnd} onChange={(e) => setGradientColorEnd(e.target.value)} style={{ width: 24, height: 24, borderRadius: "50%", border: "none", cursor: "pointer", padding: 0, background: "none" }} title="Custom end color" />
-                  </div>
-                </div>
-
-                {/* Direction — 3×3 arrow grid */}
-                <div>
-                  <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Direction</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 32px)", gap: 4 }}>
-                    {GRADIENT_DIRECTIONS.map((d) => (
-                      <button
-                        key={d.value}
-                        onClick={() => setGradientDirection(d.value)}
-                        title={d.value}
-                        style={{
-                          width: 32, height: 32, fontSize: 14,
-                          background: gradientDirection === d.value ? t.dirBtnActive : t.dirBtnInactive,
-                          color: gradientDirection === d.value ? t.dirBtnActiveColor : t.dirBtnInactiveColor,
-                          border: gradientDirection === d.value ? `2px solid ${t.dirBtnBorderActive}` : `2px solid ${t.dirBtnBorderInactive}`,
-                          borderRadius: 4, cursor: "pointer",
-                        }}
-                      >
-                        {d.label}
+          {/* Position controls — hidden for CORNER_POP */}
+          {shape !== "CORNER_POP" && (
+            <div>
+              {label_(shape === "BAR" ? "Snap to edge" : "Snap to corner")}
+              {shape === "BAR" ? (
+                <div style={{ display: "flex", gap: 6 }}>
+                  {[{ key: "TOP", label: "↑ Top" }, { key: "BOT", label: "↓ Bottom" }].map((edge) => {
+                    const active = snappedCorner === edge.key;
+                    return (
+                      <button key={edge.key} onClick={() => snapToCorner(edge.key)}
+                        style={{ padding: "6px 14px", fontSize: 12, fontWeight: 600, background: active ? t.accent : "transparent", color: active ? t.accentText : t.text, border: active ? `2px solid ${t.accent}` : `2px solid ${t.border}`, borderRadius: 4, cursor: "pointer" }}>
+                        {edge.label}
                       </button>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Position controls — hidden for CORNER_POP (corner is set via its own selector) */}
-          {shape !== "CORNER_POP" && <div>
-            {label_(shape === "BAR" ? "Snap to edge" : "Snap to corner")}
-            {shape === "BAR" ? (
-              <div style={{ display: "flex", gap: 6 }}>
-                {[{ key: "TOP", label: "↑ Top" }, { key: "BOT", label: "↓ Bottom" }].map((edge) => {
-                  const active = snappedCorner === edge.key;
-                  return (
-                    <button
-                      key={edge.key}
-                      onClick={() => snapToCorner(edge.key)}
-                      style={{
-                        padding: "6px 14px", fontSize: 12, fontWeight: 600,
-                        background: active ? t.accent : "transparent",
-                        color: active ? t.accentText : t.text,
-                        border: active ? `2px solid ${t.accent}` : `2px solid ${t.border}`,
-                        borderRadius: 4, cursor: "pointer",
-                      }}
-                    >
-                      {edge.label}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, width: 120 }}>
-                {[
-                  { key: "TL", label: "↖" },
-                  { key: "TR", label: "↗" },
-                  { key: "BL", label: "↙" },
-                  { key: "BR", label: "↘" },
-                ].map((corner) => {
-                  const active = snappedCorner === corner.key;
-                  return (
-                    <button
-                      key={corner.key}
-                      onClick={() => snapToCorner(corner.key)}
-                      style={{
-                        height: 36, fontSize: 16,
-                        background: active ? t.accent : "transparent",
-                        color: active ? t.accentText : t.muted,
-                        border: active ? `2px solid ${t.accent}` : `2px solid ${t.border}`,
-                        borderRadius: 4, cursor: "pointer",
-                      }}
-                    >
-                      {corner.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>}
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, width: 120 }}>
+                  {[{ key: "TL", label: "↖" }, { key: "TR", label: "↗" }, { key: "BL", label: "↙" }, { key: "BR", label: "↘" }].map((corner) => {
+                    const active = snappedCorner === corner.key;
+                    return (
+                      <button key={corner.key} onClick={() => snapToCorner(corner.key)}
+                        style={{ height: 36, fontSize: 16, background: active ? t.accent : "transparent", color: active ? t.accentText : t.muted, border: active ? `2px solid ${t.accent}` : `2px solid ${t.border}`, borderRadius: 4, cursor: "pointer" }}>
+                        {corner.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* CORNER_POP — corner selector */}
           {shape === "CORNER_POP" && (
             <div>
               {label_("Corner")}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, width: 120 }}>
-                {[
-                  { key: "TL", label: "↖" },
-                  { key: "TR", label: "↗" },
-                  { key: "BL", label: "↙" },
-                  { key: "BR", label: "↘" },
-                ].map((corner) => {
+                {[{ key: "TL", label: "↖" }, { key: "TR", label: "↗" }, { key: "BL", label: "↙" }, { key: "BR", label: "↘" }].map((corner) => {
                   const active = snappedCorner === corner.key;
                   return (
-                    <button
-                      key={corner.key}
-                      onClick={() => setSnappedCorner(corner.key)}
-                      style={{
-                        height: 36, fontSize: 16,
-                        background: active ? t.accent : "transparent",
-                        color: active ? t.accentText : t.muted,
-                        border: active ? `2px solid ${t.accent}` : `2px solid ${t.border}`,
-                        borderRadius: 4, cursor: "pointer",
-                      }}
-                    >
+                    <button key={corner.key} onClick={() => setSnappedCorner(corner.key)}
+                      style={{ height: 36, fontSize: 16, background: active ? t.accent : "transparent", color: active ? t.accentText : t.muted, border: active ? `2px solid ${t.accent}` : `2px solid ${t.border}`, borderRadius: 4, cursor: "pointer" }}>
                       {corner.label}
                     </button>
                   );
                 })}
               </div>
-              <div style={{ color: t.hintText, fontSize: 10, marginTop: 8 }}>
-                Hover the preview to see it expand
-              </div>
+              <div style={{ color: t.hintText, fontSize: 10, marginTop: 8 }}>Hover the preview to see it expand</div>
             </div>
           )}
 
@@ -1385,15 +1379,9 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
                   <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
                     Speed — {scrollSpeed}s cycle
                   </div>
-                  <input
-                    type="range"
-                    min={5}
-                    max={60}
-                    step={5}
-                    value={scrollSpeed}
+                  <input type="range" min={5} max={60} step={5} value={scrollSpeed}
                     onChange={(e) => setScrollSpeed(Number(e.target.value))}
-                    style={{ width: "100%", accentColor: t.accent, cursor: "pointer" }}
-                  />
+                    style={{ width: "100%", accentColor: t.accent, cursor: "pointer" }} />
                   <div style={{ display: "flex", justifyContent: "space-between", color: t.faint, fontSize: 10, marginTop: 2 }}>
                     <span>Fast</span><span>Slow</span>
                   </div>
@@ -1401,27 +1389,6 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
               )}
             </div>
           )}
-
-        </div>
-
-        {/* Right: Colors, Fill, Size, Visibility */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-
-          {/* Size */}
-          <div>
-            {label_(`Size — ${size}px`)}
-            <input
-              type="range"
-              min={9}
-              max={24}
-              value={size}
-              onChange={(e) => setSize(Number(e.target.value))}
-              style={{ width: "100%", accentColor: t.accent, cursor: "pointer" }}
-            />
-            <div style={{ display: "flex", justifyContent: "space-between", color: t.faint, fontSize: 10, marginTop: 2 }}>
-              <span>Small</span><span>Large</span>
-            </div>
-          </div>
 
           {/* Visibility */}
           <div>
@@ -1431,13 +1398,9 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
               {chip(hoverOnly && !slideIn,  () => { setHoverOnly(true);  setSlideIn(false); }, "◎ Fade on hover")}
               {chip(slideIn,               () => { setHoverOnly(false); setSlideIn(true);  }, "◈ Slide in")}
             </div>
-
-            {/* Fade — speed slider */}
             {hoverOnly && !slideIn && (
               <div>
-                <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
-                  Fade speed — {hoverDuration}ms
-                </div>
+                <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Fade speed — {hoverDuration}ms</div>
                 <input type="range" min={100} max={1000} step={50} value={hoverDuration}
                   onChange={(e) => setHoverDuration(Number(e.target.value))}
                   style={{ width: "100%", accentColor: t.accent, cursor: "pointer" }} />
@@ -1446,14 +1409,10 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
                 </div>
               </div>
             )}
-
-            {/* Slide in — direction + speed */}
             {slideIn && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div>
-                  <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
-                    Slide from
-                  </div>
+                  <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Slide from</div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {[{ key: "LEFT", label: "← Left" }, { key: "RIGHT", label: "→ Right" }, { key: "TOP", label: "↑ Top" }, { key: "BOTTOM", label: "↓ Bottom" }].map(({ key, label: lbl }) =>
                       chip(slideFrom === key, () => setSlideFrom(key), lbl)
@@ -1461,9 +1420,7 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
                   </div>
                 </div>
                 <div>
-                  <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
-                    Speed — {hoverDuration}ms
-                  </div>
+                  <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Speed — {hoverDuration}ms</div>
                   <input type="range" min={150} max={800} step={50} value={hoverDuration}
                     onChange={(e) => setHoverDuration(Number(e.target.value))}
                     style={{ width: "100%", accentColor: t.accent, cursor: "pointer" }} />
@@ -1472,6 +1429,49 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
                   </div>
                 </div>
               </div>
+            )}
+          </div>
+
+          {/* Border */}
+          <div>
+            {label_("Border")}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <input type="range" min={0} max={6} value={borderWidth} onChange={(e) => setBorderWidth(Number(e.target.value))}
+                style={{ flex: 1 }} />
+              <span style={{ color: t.muted, fontSize: 11, minWidth: 24 }}>{borderWidth}px</span>
+              {borderWidth > 0 && (
+                <input type="color" value={borderColor} onChange={(e) => setBorderColor(e.target.value)}
+                  style={{ width: 28, height: 28, border: "none", padding: 0, background: "none", cursor: "pointer", borderRadius: 4 }} />
+              )}
+            </div>
+          </div>
+
+          {/* Shadow */}
+          <div>
+            {label_("Shadow")}
+            <div style={{ display: "flex", gap: 6 }}>
+              {[["none","None"],["soft","Soft"],["hard","Hard"],["glow","Glow"]].map(([val, lbl]) => (
+                <button key={val} onClick={() => setShadowStyle(val)}
+                  style={{ padding: "5px 10px", fontSize: 11, borderRadius: 4, border: `1px solid ${shadowStyle === val ? t.accent : t.border}`, background: shadowStyle === val ? t.accent : t.btnBg, color: shadowStyle === val ? t.accentText : t.btnColor, cursor: "pointer" }}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Animation */}
+          <div>
+            {label_("Animation")}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {[["none","None"],["pulse","Pulse"],["glow","Glow"],["shimmer","Shimmer"],["confetti","Confetti"],["3d","3D Tilt"]].map(([val, lbl]) => (
+                <button key={val} onClick={() => setAnimEffect(val)}
+                  style={{ padding: "5px 10px", fontSize: 11, borderRadius: 4, border: `1px solid ${animEffect === val ? t.accent : t.border}`, background: animEffect === val ? t.accent : t.btnBg, color: animEffect === val ? t.accentText : t.btnColor, cursor: "pointer" }}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+            {animEffect === "3d" && (
+              <div style={{ color: t.faint, fontSize: 10, marginTop: 4 }}>Hover the preview to see 3D tilt.</div>
             )}
           </div>
 
@@ -1563,92 +1563,14 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
             {(startsAt || endsAt) && (
               <button onClick={() => { setStartsAt(""); setEndsAt(""); }} style={{ marginTop: 6, background: "transparent", color: t.muted, border: "none", fontSize: 10, cursor: "pointer", padding: 0 }}>✕ Clear schedule</button>
             )}
-          </div>
-
-        </div>
-
-        {/* ── Design & Effects ── */}
-        <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ color: t.muted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.6px" }}>Design & Effects</div>
-
-          {/* Font family */}
-          <div>
-            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Font</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {[["system","Default"],["impact","Impact"],["georgia","Georgia"],["courier","Mono"],["trebuchet","Trebuchet"]].map(([val, lbl]) => (
-                <button key={val} onClick={() => setFontFamily(val)}
-                  style={{ padding: "5px 10px", fontSize: 11, borderRadius: 4, border: `1px solid ${fontFamily === val ? t.accent : t.border}`, background: fontFamily === val ? t.accent : t.btnBg, color: fontFamily === val ? t.accentText : t.btnColor, cursor: "pointer" }}>
-                  {lbl}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Text transform */}
-          <div>
-            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Text case</div>
-            <div style={{ display: "flex", gap: 6 }}>
-              {[["none","Aa"],["uppercase","AA"],["capitalize","Aa Bb"],["lowercase","aa"]].map(([val, lbl]) => (
-                <button key={val} onClick={() => setTextTransform(val)}
-                  style={{ padding: "5px 10px", fontSize: 11, borderRadius: 4, border: `1px solid ${textTransform === val ? t.accent : t.border}`, background: textTransform === val ? t.accent : t.btnBg, color: textTransform === val ? t.accentText : t.btnColor, cursor: "pointer" }}>
-                  {lbl}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Border */}
-          <div>
-            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Border</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <input type="range" min={0} max={6} value={borderWidth} onChange={(e) => setBorderWidth(Number(e.target.value))}
-                style={{ flex: 1 }} />
-              <span style={{ color: t.muted, fontSize: 11, minWidth: 24 }}>{borderWidth}px</span>
-              {borderWidth > 0 && (
-                <input type="color" value={borderColor} onChange={(e) => setBorderColor(e.target.value)}
-                  style={{ width: 28, height: 28, border: "none", padding: 0, background: "none", cursor: "pointer", borderRadius: 4 }} />
-              )}
-            </div>
-          </div>
-
-          {/* Shadow */}
-          <div>
-            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Shadow</div>
-            <div style={{ display: "flex", gap: 6 }}>
-              {[["none","None"],["soft","Soft"],["hard","Hard"],["glow","Glow"]].map(([val, lbl]) => (
-                <button key={val} onClick={() => setShadowStyle(val)}
-                  style={{ padding: "5px 10px", fontSize: 11, borderRadius: 4, border: `1px solid ${shadowStyle === val ? t.accent : t.border}`, background: shadowStyle === val ? t.accent : t.btnBg, color: shadowStyle === val ? t.accentText : t.btnColor, cursor: "pointer" }}>
-                  {lbl}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Animation effect */}
-          <div>
-            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Animation</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {[["none","None"],["pulse","Pulse"],["glow","Glow"],["shimmer","Shimmer"],["confetti","Confetti"],["3d","3D Tilt"]].map(([val, lbl]) => (
-                <button key={val} onClick={() => setAnimEffect(val)}
-                  style={{ padding: "5px 10px", fontSize: 11, borderRadius: 4, border: `1px solid ${animEffect === val ? t.accent : t.border}`, background: animEffect === val ? t.accent : t.btnBg, color: animEffect === val ? t.accentText : t.btnColor, cursor: "pointer" }}>
-                  {lbl}
-                </button>
-              ))}
-            </div>
-            {animEffect === "3d" && (
-              <div style={{ color: t.faint, fontSize: 10, marginTop: 4 }}>Hover over the preview to see the 3D tilt effect.</div>
+            {endsAt && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+                <input type="checkbox" id="showCountdown" checked={showCountdown} onChange={(e) => setShowCountdown(e.target.checked)} />
+                <label htmlFor="showCountdown" style={{ color: t.text, fontSize: 12, cursor: "pointer" }}>Show live countdown instead of label</label>
+              </div>
             )}
           </div>
 
-          {/* Countdown toggle — only relevant when endsAt is set */}
-          {endsAt && (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <input type="checkbox" id="showCountdown" checked={showCountdown} onChange={(e) => setShowCountdown(e.target.checked)} />
-              <label htmlFor="showCountdown" style={{ color: t.text, fontSize: 12, cursor: "pointer" }}>
-                Show live countdown instead of label
-              </label>
-            </div>
-          )}
         </div>
 
         {/* CTA */}
