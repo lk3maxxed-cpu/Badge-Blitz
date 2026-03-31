@@ -1942,43 +1942,84 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit, isFirst, isLast, to
     fetcher.formData?.get("badgeId") === badge.id &&
     fetcher.formData?.get("intent") === "delete";
 
-  const bg = badge.gradientEnabled && badge.gradientColorEnd
-    ? `linear-gradient(${badge.gradientDirection}, ${badge.color}, ${badge.gradientColorEnd})`
-    : badge.color;
+  // Resolve position percentages from enum when positionX/Y not set
+  const _posEnum = badge.position || "TOP_LEFT";
+  const _fallbackPx = _posEnum.includes("RIGHT") ? 88 : _posEnum.includes("LEFT") ? 12 : 50;
+  const _fallbackPy = badge.shape === "BAR"
+    ? (_posEnum.includes("BOTTOM") ? 98 : _posEnum.includes("TOP") ? 2 : 50)
+    : (_posEnum.includes("BOTTOM") ? 88 : _posEnum.includes("TOP") ? 12 : 50);
+  const _px = badge.positionX != null ? badge.positionX : _fallbackPx;
+  const _py = badge.positionY != null ? badge.positionY : _fallbackPy;
 
-  const badgeStyle = badge.shape === "BAR" ? {
-    position: "absolute",
-    left: 0, right: 0, width: "100%",
-    top: badge.positionY != null ? `${badge.positionY}%` : (badge.position?.includes("BOTTOM") ? "auto" : 0),
-    bottom: badge.positionY != null ? "auto" : (badge.position?.includes("BOTTOM") ? 0 : "auto"),
-    transform: badge.positionY != null ? "translateY(-50%)" : "none",
-    background: bg, color: badge.textColor,
-    fontSize: badge.size || 11, fontWeight: 700,
-    padding: "7px 0", textAlign: "center",
-    letterSpacing: "0.4px", overflow: "hidden",
-  } : {
-    position: "absolute",
-    top: badge.positionY != null ? `${badge.positionY}%` : (badge.position?.includes("BOTTOM") ? "auto" : 10),
-    bottom: badge.positionY != null ? "auto" : (badge.position?.includes("BOTTOM") ? 10 : "auto"),
-    left: badge.positionX != null ? `${badge.positionX}%` : (badge.position?.includes("RIGHT") ? "auto" : badge.shape === "RIBBON" ? 0 : 10),
-    right: badge.positionX != null ? "auto" : (badge.position?.includes("RIGHT") ? 10 : "auto"),
-    transform: badge.positionX != null ? "translate(-50%, -50%)" : "none",
-    background: bg, color: badge.textColor,
-    fontSize: badge.size || 11, fontWeight: 700,
-    letterSpacing: "0.4px", lineHeight: 1.2, whiteSpace: "nowrap",
-    padding: badge.shape === "CIRCLE"
-      ? `${Math.round((badge.size || 11) * 0.6)}px`
-      : badge.shape === "PILL" ? "4px 10px"
-      : badge.shape === "RIBBON" ? "4px 12px 4px 8px"
-      : "4px 8px",
-    borderRadius: badge.shape === "PILL" ? 999 : badge.shape === "CIRCLE" ? "50%" : badge.shape === "SQUARE" ? 4 : badge.shape === "RIBBON" ? "0 4px 4px 0" : 0,
-    aspectRatio: badge.shape === "CIRCLE" ? "1" : "auto",
-    overflow: badge.shape === "CIRCLE" ? "hidden" : "visible",
-    display: badge.shape === "CIRCLE" ? "flex" : "block",
-    alignItems: badge.shape === "CIRCLE" ? "center" : "unset",
-    justifyContent: badge.shape === "CIRCLE" ? "center" : "unset",
-    textAlign: badge.shape === "CIRCLE" ? "center" : "unset",
+  // Build badge style using the exact same function as the live preview
+  const badgeStyle = {
+    ...buildBadgeStyle({
+      color: badge.color,
+      textColor: badge.textColor,
+      shape: badge.shape,
+      edgeStyle: badge.edgeStyle || "SMOOTH",
+      size: badge.size || 12,
+      px: _px,
+      py: _py,
+      gradientEnabled: badge.gradientEnabled,
+      gradientColorEnd: badge.gradientColorEnd,
+      gradientDirection: badge.gradientDirection || "to right",
+      cpCorner: badge.position || "TOP_LEFT",
+      cpExpanded: badge.shape === "CORNER_POP" ? hovered : false,
+      fontFamily: badge.fontFamily || "system",
+      textTransform: badge.textTransform || "none",
+      borderWidth: badge.borderWidth ?? 0,
+      borderColor: badge.borderColor || "#ffffff",
+      shadowStyle: badge.shadowStyle || "none",
+    }),
+    cursor: "default",
   };
+
+  // Animation style — mirrors buildAnimStyle() in the builder
+  const _anim = badge.animEffect || "none";
+  const animStyle = _anim === "pulse"
+    ? { animation: "bb-pulse 1.6s ease-in-out infinite" }
+    : _anim === "glow"
+    ? { animation: "bb-glow 2s ease-in-out infinite" }
+    : _anim === "shimmer"
+    ? { backgroundImage: `linear-gradient(120deg,${badge.color} 0%,${badge.color} 30%,#fff9 50%,${badge.color} 70%,${badge.color} 100%)`, backgroundSize: "200% auto", animation: "bb-shimmer 2.4s linear infinite" }
+    : {};
+
+  // Hover visibility (fade / slide-in)
+  const _slideOffset = CARD_SLIDE_OFFSET[badge.slideFrom] || CARD_SLIDE_OFFSET.LEFT;
+  const visStyle = badge.slideIn
+    ? {
+        opacity: hovered ? 1 : 0,
+        transform: hovered
+          ? (badgeStyle.transform || "")
+          : `${badgeStyle.transform || ""} ${_slideOffset}`.trim(),
+        transition: `transform ${badge.hoverDuration || 300}ms cubic-bezier(0.4,0,0.2,1), opacity ${badge.hoverDuration || 300}ms ease`,
+      }
+    : badge.hoverOnly
+    ? { opacity: hovered ? 1 : 0, transition: `opacity ${badge.hoverDuration || 300}ms ease` }
+    : {};
+
+  const badgeContent = badge.iconDataUrl
+    ? <img src={badge.iconDataUrl} alt="" style={{ width: "1.4em", height: "1.4em", objectFit: "contain", display: "block" }} />
+    : badge.label;
+
+  const renderedBadge = (() => {
+    if (badge.shape === "CORNER_POP") {
+      return <div style={{ ...badgeStyle, ...animStyle }}>{badgeContent}</div>;
+    }
+    if (badge.shape === "BAR") {
+      return (
+        <div style={{ ...badgeStyle, ...animStyle, ...visStyle }}>
+          {badge.scrollingEnabled && !badge.iconDataUrl ? (
+            <span style={{ display: "inline-block", whiteSpace: "nowrap", animation: `bb-marquee ${badge.scrollSpeed || 20}s linear infinite` }}>
+              {(() => { const seg = badge.label + "\u00a0\u00a0·\u00a0\u00a0"; return seg.repeat(16); })()}
+            </span>
+          ) : badgeContent}
+        </div>
+      );
+    }
+    return <span style={{ ...badgeStyle, ...animStyle, ...visStyle }}>{badgeContent}</span>;
+  })();
 
   return (
     <div style={{
@@ -2001,42 +2042,7 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit, isFirst, isLast, to
             <div style={{ position: "absolute", bottom: "15%", left: "50%", transform: "translateX(-50%)", width: "55%", height: "60%", background: "#e3e3e3", borderRadius: 6 }} />
           </>
         )}
-        {(() => {
-          const slideOffset = CARD_SLIDE_OFFSET[badge.slideFrom] || CARD_SLIDE_OFFSET.LEFT;
-          const visStyle = badge.slideIn
-            ? {
-                opacity: hovered ? 1 : 0,
-                transform: hovered
-                  ? (badgeStyle.transform || "")
-                  : `${badgeStyle.transform || ""} ${slideOffset}`.trim(),
-                transition: `transform ${badge.hoverDuration || 300}ms cubic-bezier(0.4,0,0.2,1), opacity ${badge.hoverDuration || 300}ms ease`,
-              }
-            : badge.hoverOnly
-            ? { opacity: hovered ? 1 : 0, transition: `opacity ${badge.hoverDuration || 300}ms ease` }
-            : {};
-          if (badge.shape === "BAR" && badge.scrollingEnabled) {
-            return (
-              <div style={{ ...badgeStyle, overflow: "hidden", ...visStyle }}>
-                <span style={{ display: "inline-block", whiteSpace: "nowrap", animation: `bb-marquee ${badge.scrollSpeed || 20}s linear infinite` }}>
-                  {(() => { const seg = badge.label + "\u00a0\u00a0·\u00a0\u00a0"; return seg.repeat(16); })()}
-                </span>
-              </div>
-            );
-          }
-          const badgeContent = badge.iconDataUrl
-            ? <img src={badge.iconDataUrl} alt="" style={{ width: "1.4em", height: "1.4em", objectFit: "contain", display: "block" }} />
-            : badge.label;
-          if (badge.shape === "BAR" && badge.scrollingEnabled && !badge.iconDataUrl) {
-            return (
-              <div style={{ ...badgeStyle, overflow: "hidden", ...visStyle }}>
-                <span style={{ display: "inline-block", whiteSpace: "nowrap", animation: `bb-marquee ${badge.scrollSpeed || 20}s linear infinite` }}>
-                  {(() => { const seg = badge.label + "\u00a0\u00a0·\u00a0\u00a0"; return seg.repeat(16); })()}
-                </span>
-              </div>
-            );
-          }
-          return <span style={{ ...badgeStyle, ...visStyle }}>{badgeContent}</span>;
-        })()}
+        {renderedBadge}
         {!badge.active && (
           <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.55)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: "#888", background: "#fff", padding: "3px 10px", borderRadius: 99, border: "1px solid #ddd" }}>Inactive</span>
