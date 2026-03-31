@@ -2312,7 +2312,26 @@ export default function Dashboard() {
             padding: "40px 48px",
             background: "#fafafa",
             boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+            position: "relative",
+            overflow: "hidden",
           }}>
+            {/* Logo — top right */}
+            <img
+              src="/logo.png"
+              alt="Badge Blitz"
+              style={{
+                position: "absolute",
+                top: 24,
+                right: 32,
+                width: 96,
+                height: 96,
+                objectFit: "contain",
+                opacity: 0.92,
+                pointerEvents: "none",
+                userSelect: "none",
+              }}
+            />
+
             <div style={{ maxWidth: 600 }}>
               <div style={{ marginBottom: 8 }}>
                 <span style={{ background: "#000", color: "#fff", fontSize: 11, fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase", padding: "3px 10px" }}>
@@ -2337,8 +2356,14 @@ export default function Dashboard() {
 
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                 <a
-                  href="#my-badges"
+                  href="#featured-badges"
                   style={{ display: "inline-block", background: "#000", color: "#fff", fontWeight: 700, fontSize: 13, padding: "11px 22px", textDecoration: "none", letterSpacing: "0.2px" }}
+                >
+                  Browse featured badges
+                </a>
+                <a
+                  href="#my-badges"
+                  style={{ display: "inline-block", background: "#fff", color: "#000", fontWeight: 700, fontSize: 13, padding: "11px 22px", textDecoration: "none", letterSpacing: "0.2px", border: "1.5px solid #000" }}
                 >
                   Browse my badges
                 </a>
@@ -2394,7 +2419,9 @@ export default function Dashboard() {
 
         {/* Featured Badges */}
         <Layout.Section>
-          <FeaturedBadges disabled={atLimit} />
+          <div id="featured-badges">
+            <FeaturedBadges disabled={atLimit} />
+          </div>
         </Layout.Section>
 
         {/* Custom badge builder */}
