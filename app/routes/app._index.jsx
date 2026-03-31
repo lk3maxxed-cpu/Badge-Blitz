@@ -1796,6 +1796,228 @@ function ProductBadgeManager({ badges, isPro }) {
   );
 }
 
+// ── FeaturedBadges ────────────────────────────────────────────
+const FEATURED = [
+  {
+    name: "Flash Sale Bar",
+    description: "Scrolling fire-gradient banner that stops shoppers instantly",
+    preset: {
+      label: "🔥 FLASH SALE · FREE SHIPPING · TODAY ONLY 🔥",
+      color: "#E11D48", textColor: "#FFFFFF", shape: "BAR", size: 13,
+      gradientEnabled: true, gradientColorEnd: "#F97316", gradientDirection: "to right",
+      positionX: null, positionY: 8, position: "TOP_LEFT",
+      fontFamily: "impact", textTransform: "uppercase", shadowStyle: "glow",
+      scrollingEnabled: true, scrollSpeed: 12, animEffect: "shimmer",
+      edgeStyle: "SMOOTH", borderWidth: 0, borderColor: "#ffffff",
+      hoverOnly: false, slideIn: false, hoverDuration: 300, slideFrom: "LEFT",
+      type: "CUSTOM", stockThreshold: 5, targetType: "ALL", targetIds: "",
+      collectionIds: "", iconDataUrl: "", startsAt: "", endsAt: "", showCountdown: false, priority: 10,
+    },
+  },
+  {
+    name: "Bestseller Pill",
+    description: "Gold-on-black premium pill — the badge every top product deserves",
+    preset: {
+      label: "BESTSELLER",
+      color: "#18181B", textColor: "#FCD34D", shape: "PILL", size: 13,
+      gradientEnabled: true, gradientColorEnd: "#3F3F46", gradientDirection: "to bottom right",
+      positionX: 18, positionY: 18, position: "TOP_LEFT",
+      fontFamily: "georgia", textTransform: "uppercase", shadowStyle: "hard",
+      scrollingEnabled: false, scrollSpeed: 20, animEffect: "pulse",
+      edgeStyle: "SMOOTH", borderWidth: 1, borderColor: "#FCD34D",
+      hoverOnly: false, slideIn: false, hoverDuration: 300, slideFrom: "LEFT",
+      type: "CUSTOM", stockThreshold: 5, targetType: "ALL", targetIds: "",
+      collectionIds: "", iconDataUrl: "", startsAt: "", endsAt: "", showCountdown: false, priority: 9,
+    },
+  },
+  {
+    name: "New In Corner",
+    description: "Sharp corner pop that announces fresh arrivals with authority",
+    preset: {
+      label: "NEW IN",
+      color: "#000000", textColor: "#FFFFFF", shape: "CORNER_POP", size: 14,
+      gradientEnabled: false, gradientColorEnd: "#553C9A", gradientDirection: "to right",
+      positionX: null, positionY: null, position: "TOP_RIGHT",
+      fontFamily: "impact", textTransform: "uppercase", shadowStyle: "none",
+      scrollingEnabled: false, scrollSpeed: 20, animEffect: "none",
+      edgeStyle: "SMOOTH", borderWidth: 0, borderColor: "#ffffff",
+      hoverOnly: false, slideIn: false, hoverDuration: 300, slideFrom: "LEFT",
+      type: "CUSTOM", stockThreshold: 5, targetType: "ALL", targetIds: "",
+      collectionIds: "", iconDataUrl: "", startsAt: "", endsAt: "", showCountdown: false, priority: 8,
+    },
+  },
+];
+
+function FeaturedBadgePreview({ preset }) {
+  // Inject animation keyframes if not already present
+  useEffect(() => {
+    const id = "bb-anim-kf";
+    if (!document.getElementById(id)) {
+      const s = document.createElement("style");
+      s.id = id;
+      s.textContent = [
+        "@keyframes bb-marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}",
+        "@keyframes bb-pulse{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.12)}}",
+        "@keyframes bb-glow{0%,100%{opacity:1;filter:brightness(1)}50%{opacity:0.85;filter:brightness(1.4)}}",
+        "@keyframes bb-shimmer{0%{background-position:200% center}100%{background-position:-200% center}}",
+      ].join("\n");
+      document.head.appendChild(s);
+    }
+  }, []);
+
+  const px = preset.positionX ?? 18;
+  const py = preset.positionY ?? 18;
+
+  const badgeStyle = {
+    ...buildBadgeStyle({
+      color: preset.color, textColor: preset.textColor, shape: preset.shape,
+      edgeStyle: preset.edgeStyle, size: preset.size, px, py,
+      gradientEnabled: preset.gradientEnabled, gradientColorEnd: preset.gradientColorEnd,
+      gradientDirection: preset.gradientDirection,
+      cpCorner: preset.position || "TOP_LEFT", cpExpanded: false,
+      fontFamily: preset.fontFamily, textTransform: preset.textTransform,
+      borderWidth: preset.borderWidth, borderColor: preset.borderColor,
+      shadowStyle: preset.shadowStyle,
+    }),
+    cursor: "default",
+  };
+
+  const animStyle = preset.animEffect === "pulse"
+    ? { animation: "bb-pulse 1.6s ease-in-out infinite" }
+    : preset.animEffect === "shimmer"
+    ? { backgroundImage: `linear-gradient(120deg,${preset.color} 0%,${preset.color} 30%,#fff9 50%,${preset.color} 70%,${preset.color} 100%)`, backgroundSize: "200% auto", animation: "bb-shimmer 2.4s linear infinite" }
+    : {};
+
+  const badgeContent = preset.shape === "BAR" && preset.scrollingEnabled
+    ? (
+      <span style={{ display: "inline-block", whiteSpace: "nowrap", animation: `bb-marquee ${preset.scrollSpeed}s linear infinite` }}>
+        {(preset.label + "\u00a0\u00a0·\u00a0\u00a0").repeat(14)}
+      </span>
+    )
+    : preset.label;
+
+  const el = preset.shape === "BAR"
+    ? <div style={{ ...badgeStyle, ...animStyle }}>{badgeContent}</div>
+    : preset.shape === "CORNER_POP"
+    ? <div style={{ ...badgeStyle, ...animStyle }}>{badgeContent}</div>
+    : <span style={{ ...badgeStyle, ...animStyle }}>{badgeContent}</span>;
+
+  return (
+    <div style={{ position: "relative", width: "100%", aspectRatio: "1 / 1", borderRadius: 10, overflow: "hidden", background: "#f0f0f0" }}>
+      <img src="/placeholder-product.jpg" alt="product" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+      {el}
+    </div>
+  );
+}
+
+function FeaturedBadges({ disabled }) {
+  const fetcher = useFetcher();
+  const [saved, setSaved] = useState(null);
+
+  const handleUse = (preset) => {
+    const fd = new FormData();
+    fd.append("intent", "create");
+    fd.append("label", preset.label);
+    fd.append("color", preset.color);
+    fd.append("textColor", preset.textColor);
+    fd.append("shape", preset.shape);
+    fd.append("size", String(preset.size));
+    fd.append("edgeStyle", preset.edgeStyle);
+    if (preset.shape === "CORNER_POP") {
+      fd.append("position", preset.position);
+    } else {
+      fd.append("px", String(preset.positionX ?? 18));
+      fd.append("py", String(preset.positionY ?? 18));
+    }
+    fd.append("gradientEnabled", String(preset.gradientEnabled));
+    fd.append("gradientColorEnd", preset.gradientColorEnd);
+    fd.append("gradientDirection", preset.gradientDirection);
+    fd.append("hoverOnly", String(preset.hoverOnly));
+    fd.append("hoverDuration", String(preset.hoverDuration));
+    fd.append("slideIn", String(preset.slideIn));
+    fd.append("slideFrom", preset.slideFrom);
+    fd.append("scrollingEnabled", String(preset.scrollingEnabled));
+    fd.append("scrollSpeed", String(preset.scrollSpeed));
+    fd.append("type", preset.type);
+    fd.append("stockThreshold", String(preset.stockThreshold));
+    fd.append("targetType", preset.targetType);
+    fd.append("targetIds", preset.targetIds);
+    fd.append("collectionIds", preset.collectionIds);
+    fd.append("iconDataUrl", preset.iconDataUrl);
+    fd.append("startsAt", preset.startsAt);
+    fd.append("endsAt", preset.endsAt);
+    fd.append("fontFamily", preset.fontFamily);
+    fd.append("textTransform", preset.textTransform);
+    fd.append("borderWidth", String(preset.borderWidth));
+    fd.append("borderColor", preset.borderColor);
+    fd.append("shadowStyle", preset.shadowStyle);
+    fd.append("animEffect", preset.animEffect);
+    fd.append("showCountdown", String(preset.showCountdown));
+    fetcher.submit(fd, { method: "post" });
+    setSaved(preset.label);
+  };
+
+  return (
+    <div style={{ padding: "40px 0 8px" }}>
+      {/* Header */}
+      <div style={{ marginBottom: 28, textAlign: "center" }}>
+        <div style={{ display: "inline-block", background: "#000", color: "#fff", fontSize: 10, fontWeight: 700, letterSpacing: "2px", textTransform: "uppercase", padding: "4px 14px", borderRadius: 2, marginBottom: 12 }}>
+          Featured Badges
+        </div>
+        <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.5px", marginBottom: 8 }}>
+          Start with a proven design
+        </div>
+        <div style={{ fontSize: 14, color: "#666", maxWidth: 460, margin: "0 auto" }}>
+          Hand-crafted badges used by top-performing stores. One click to add to your collection.
+        </div>
+      </div>
+
+      {/* Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
+        {FEATURED.map((f) => {
+          const isSaving = fetcher.state !== "idle" && saved === f.preset.label;
+          const wasSaved = fetcher.state === "idle" && saved === f.preset.label && fetcher.data?.success;
+          return (
+            <div key={f.name} style={{
+              borderRadius: 14, overflow: "hidden", background: "#fff",
+              border: "1px solid #e1e3e5",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05)",
+              display: "flex", flexDirection: "column",
+              transition: "transform 0.2s ease, box-shadow 0.2s ease",
+            }}>
+              <FeaturedBadgePreview preset={f.preset} />
+              <div style={{ padding: "18px 20px 20px", flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ fontWeight: 800, fontSize: 15, letterSpacing: "-0.2px" }}>{f.name}</div>
+                <div style={{ fontSize: 12, color: "#777", lineHeight: 1.5, flex: 1 }}>{f.description}</div>
+                <button
+                  disabled={disabled || isSaving || wasSaved}
+                  onClick={() => handleUse(f.preset)}
+                  style={{
+                    marginTop: 10,
+                    width: "100%",
+                    padding: "10px 0",
+                    background: wasSaved ? "#16a34a" : disabled ? "#e5e7eb" : "#000",
+                    color: wasSaved ? "#fff" : disabled ? "#9ca3af" : "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: disabled || isSaving || wasSaved ? "default" : "pointer",
+                    letterSpacing: "0.2px",
+                    transition: "background 0.2s ease",
+                  }}
+                >
+                  {isSaving ? "Adding…" : wasSaved ? "✓ Added to My Badges" : "Use this badge"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── MyBadgeCard ───────────────────────────────────────────────
 const CARD_SLIDE_OFFSET = { LEFT: "translateX(-300%)", RIGHT: "translateX(300%)", TOP: "translateY(-300%)", BOTTOM: "translateY(300%)" };
 
@@ -2175,6 +2397,11 @@ export default function Dashboard() {
           <div id="custom-builder" ref={builderRef}>
             <CustomBadgeBuilder disabled={atLimit && !editingBadge} previewImage={previewImage} onImageChange={setPreviewImage} editingBadge={editingBadge} onEditDone={() => setEditingBadge(null)} />
           </div>
+        </Layout.Section>
+
+        {/* Featured Badges */}
+        <Layout.Section>
+          <FeaturedBadges disabled={atLimit} />
         </Layout.Section>
 
         {/* My Badges gallery */}
