@@ -1821,7 +1821,7 @@ const FEATURED = [
       label: "BESTSELLER",
       color: "#18181B", textColor: "#FCD34D", shape: "PILL", size: 13,
       gradientEnabled: true, gradientColorEnd: "#3F3F46", gradientDirection: "to bottom right",
-      positionX: 18, positionY: 18, position: "TOP_LEFT",
+      positionX: 50, positionY: 85, position: "TOP_LEFT",
       fontFamily: "georgia", textTransform: "uppercase", shadowStyle: "hard",
       scrollingEnabled: false, scrollSpeed: 20, animEffect: "pulse",
       edgeStyle: "SMOOTH", borderWidth: 1, borderColor: "#FCD34D",
@@ -1904,7 +1904,7 @@ function FeaturedBadgePreview({ preset }) {
 
   return (
     <div style={{ position: "relative", width: "100%", aspectRatio: "1 / 1", borderRadius: 10, overflow: "hidden", background: "#f0f0f0" }}>
-      <img src="/placeholder-product.jpg" alt="product" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+      <img src="/placehorder.jpg" alt="product" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
       {el}
     </div>
   );
@@ -2392,16 +2392,16 @@ export default function Dashboard() {
           </Layout.Section>
         )}
 
+        {/* Featured Badges */}
+        <Layout.Section>
+          <FeaturedBadges disabled={atLimit} />
+        </Layout.Section>
+
         {/* Custom badge builder */}
         <Layout.Section>
           <div id="custom-builder" ref={builderRef}>
             <CustomBadgeBuilder disabled={atLimit && !editingBadge} previewImage={previewImage} onImageChange={setPreviewImage} editingBadge={editingBadge} onEditDone={() => setEditingBadge(null)} />
           </div>
-        </Layout.Section>
-
-        {/* Featured Badges */}
-        <Layout.Section>
-          <FeaturedBadges disabled={atLimit} />
         </Layout.Section>
 
         {/* My Badges gallery */}
