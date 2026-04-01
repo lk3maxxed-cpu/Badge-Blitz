@@ -349,7 +349,7 @@
         el.style.transform = "scale(1.18)";
         el.style.boxShadow = "0 6px 18px rgba(0,0,0,0.32)";
         if (cpHidden) el.style.opacity = "1";
-        if (badge.animEffect === "confetti") triggerConfetti(el);
+        // confetti removed
       });
       card.addEventListener("mouseleave", function () {
         el.style.transform = cpSlideIn ? "scale(1) " + cpSlideOffset : "scale(1)";
@@ -398,6 +398,45 @@
         el.textContent = badge.label;
         el.style.textAlign = "center";
       }
+
+      return el;
+    }
+
+    // ── LINED starburst — outer shell + inner badge ───────────────────────────
+    if (badge.shape === "CIRCLE" && badge.edgeStyle === "LINED") {
+      var ls   = badge.size || 12;
+      var ld   = Math.round(ls * 3.8 + 8);
+      var lCol = badge.borderColor || "#ffffff";
+      var lBg  = (badge.gradientEnabled && badge.gradientColorEnd)
+        ? "linear-gradient(" + (badge.gradientDirection || "to right") + "," + badge.color + "," + badge.gradientColorEnd + ")"
+        : badge.color;
+
+      el.style.position  = "absolute";
+      el.style.width     = ld + "px";
+      el.style.height    = ld + "px";
+      el.style.background = lCol;
+      el.style.clipPath  = STARBURST;
+      el.style.display   = "flex";
+      el.style.alignItems    = "center";
+      el.style.justifyContent = "center";
+      if (badge.shadowStyle && badge.shadowStyle !== "none") {
+        el.style.boxShadow = shadowCSS(badge.shadowStyle, badge.color);
+      }
+      if (badge.positionX != null && badge.positionY != null) {
+        el.style.left      = badge.positionX + "%";
+        el.style.top       = badge.positionY + "%";
+        el.style.transform = "translate(-50%, -50%)";
+      }
+      el.dataset.baseTransform = el.style.transform || "";
+
+      var inner = document.createElement("span");
+      inner.style.cssText = "width:84%;height:84%;clip-path:" + STARBURST + ";display:flex;align-items:center;justify-content:center;font-weight:700;font-size:" + ls + "px;color:" + badge.textColor;
+      inner.style.background = lBg;
+      if (FONT_FAMILIES[badge.fontFamily]) inner.style.fontFamily = FONT_FAMILIES[badge.fontFamily];
+      if (badge.textTransform && badge.textTransform !== "none") inner.style.textTransform = badge.textTransform;
+      inner.textContent = badge.label;
+      applyAnimEffect(inner, badge, false);
+      el.appendChild(inner);
 
       return el;
     }

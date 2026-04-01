@@ -1043,6 +1043,41 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
                 ? <img src={iconDataUrl} alt="" style={{ width: "1.4em", height: "1.4em", objectFit: "contain", display: "block" }} />
                 : (label || "My Badge");
               const animStyle = buildAnimStyle();
+              // ── LINED starburst — two nested elements ──────────────────
+              if (shape === "CIRCLE" && edgeStyle === "LINED") {
+                const _d = Math.round(size * 3.8 + 8);
+                const _liningColor = borderColor || "#ffffff";
+                const _innerBg = gradientEnabled && gradientColorEnd
+                  ? `linear-gradient(${gradientDirection || "to right"}, ${color}, ${gradientColorEnd})`
+                  : color;
+                const _outerStyle = {
+                  position: "absolute",
+                  left: `${pos.x}%`, top: `${pos.y}%`,
+                  transform: "translate(-50%,-50%)",
+                  width: _d, height: _d,
+                  background: _liningColor,
+                  clipPath: STARBURST,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: dragging ? "grabbing" : "grab",
+                  userSelect: "none", zIndex: 2,
+                  boxShadow: shadowStyle !== "none" ? shadowCSS(shadowStyle, color) : undefined,
+                };
+                const _innerStyle = {
+                  width: "84%", height: "84%",
+                  background: _innerBg,
+                  clipPath: STARBURST,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: size, fontWeight: 700, color: textColor,
+                  fontFamily: FONT_FAMILIES[fontFamily] || FONT_FAMILIES.system,
+                  textTransform: textTransform === "none" ? undefined : textTransform,
+                  ...animStyle,
+                };
+                return (
+                  <span ref={badgeRef} onMouseDown={handleMouseDown} style={{ ..._outerStyle, ...buildVisStyle("translate(-50%,-50%)") }}>
+                    <span style={_innerStyle}>{badgeContent}</span>
+                  </span>
+                );
+              }
               if (shape === "CORNER_POP") return (
                 <div style={{ ...badgeStyle, ...animStyle, ...buildVisStyle(badgeStyle.transform) }}>{badgeContent}</div>
               );
@@ -1311,6 +1346,7 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
               <div style={{ display: "flex", gap: 6 }}>
                 {chip(edgeStyle === "SMOOTH", () => setEdgeStyle("SMOOTH"), "● Smooth")}
                 {chip(edgeStyle === "RIDGED", () => setEdgeStyle("RIDGED"), "✦ Ridged")}
+                {chip(edgeStyle === "LINED", () => setEdgeStyle("LINED"), "◎ Lined")}
               </div>
             </div>
           )}
@@ -1463,7 +1499,9 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
           <div>
             {label_("Animation")}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {[["none","None"],["pulse","Pulse"],["glow","Glow"],["shimmer","Shimmer"],["confetti","Confetti"],["3d","3D Tilt"]].map(([val, lbl]) => (
+              {[["none","None"],["pulse","Pulse"],["glow","Glow"],["shimmer","Shimmer"],["3d","3D Tilt"]]
+                .filter(([val]) => !(shape === "BAR" && val === "3d"))
+                .map(([val, lbl]) => (
                 <button key={val} onClick={() => setAnimEffect(val)}
                   style={{ padding: "5px 10px", fontSize: 11, borderRadius: 4, border: `1px solid ${animEffect === val ? t.accent : t.border}`, background: animEffect === val ? t.accent : t.btnBg, color: animEffect === val ? t.accentText : t.btnColor, cursor: "pointer" }}>
                   {lbl}
@@ -2148,6 +2186,39 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit, isFirst, isLast, to
     : badge.label;
 
   const renderedBadge = (() => {
+    if (badge.shape === "CIRCLE" && badge.edgeStyle === "LINED") {
+      const _d = Math.round((badge.size || 12) * 3.8 + 8);
+      const _liningColor = badge.borderColor || "#ffffff";
+      const _innerBg = badge.gradientEnabled && badge.gradientColorEnd
+        ? `linear-gradient(${badge.gradientDirection || "to right"}, ${badge.color}, ${badge.gradientColorEnd})`
+        : badge.color;
+      const _outerStyle = {
+        position: "absolute",
+        left: `${_px}%`, top: `${_py}%`,
+        transform: "translate(-50%,-50%)",
+        width: _d, height: _d,
+        background: _liningColor,
+        clipPath: STARBURST,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        cursor: "default", userSelect: "none", zIndex: 2,
+        boxShadow: badge.shadowStyle && badge.shadowStyle !== "none" ? shadowCSS(badge.shadowStyle, badge.color) : undefined,
+      };
+      const _innerStyle = {
+        width: "84%", height: "84%",
+        background: _innerBg,
+        clipPath: STARBURST,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: badge.size || 12, fontWeight: 700, color: badge.textColor,
+        fontFamily: FONT_FAMILIES[badge.fontFamily] || FONT_FAMILIES.system,
+        textTransform: badge.textTransform === "none" ? undefined : badge.textTransform,
+        ...animStyle,
+      };
+      return (
+        <span style={{ ..._outerStyle, ...visStyle }}>
+          <span style={_innerStyle}>{badgeContent}</span>
+        </span>
+      );
+    }
     if (badge.shape === "CORNER_POP") {
       return <div style={{ ...badgeStyle, ...animStyle }}>{badgeContent}</div>;
     }
