@@ -249,6 +249,18 @@ export async function action({ request }) {
     return data({ success: true });
   }
 
+  if (intent === "update-targeting") {
+    await db.badge.update({
+      where: { id: badgeId },
+      data: {
+        targetType: formData.get("targetType") || "ALL",
+        targetIds: formData.get("targetIds") || null,
+        collectionIds: formData.get("collectionIds") || null,
+      },
+    });
+    return data({ success: true });
+  }
+
   if (intent === "reorder") {
     const direction = formData.get("direction"); // "up" | "down"
     const { shop } = session;
@@ -649,13 +661,6 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
   const [previewHovered, setPreviewHovered] = useState(false);
   const [scrollingEnabled, setScrollingEnabled] = useState(false);
   const [scrollSpeed, setScrollSpeed] = useState(20);
-  const [targetType, setTargetType] = useState("ALL");
-  const [targetIds, setTargetIds] = useState("");
-  const [collectionIds, setCollectionIds] = useState("");
-  const [badgeType, setBadgeType] = useState("CUSTOM");
-  const [stockThreshold, setStockThreshold] = useState(5);
-  const [startsAt, setStartsAt] = useState("");
-  const [endsAt, setEndsAt] = useState("");
   const [iconDataUrl, setIconDataUrl] = useState(null);
   const [fontFamily, setFontFamily] = useState("system");
   const [textTransform, setTextTransform] = useState("none");
@@ -663,11 +668,9 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
   const [borderColor, setBorderColor] = useState("#ffffff");
   const [shadowStyle, setShadowStyle] = useState("none");
   const [animEffect, setAnimEffect] = useState("none");
-  const [showCountdown, setShowCountdown] = useState(false);
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
   const iconFileInputRef = useRef(null);
-  const csvFileInputRef = useRef(null);
   const productFetcher = useFetcher();
   const [productIdInput, setProductIdInput] = useState("");
 
@@ -691,11 +694,6 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
     setSlideFrom(editingBadge.slideFrom || "LEFT");
     setScrollingEnabled(!!editingBadge.scrollingEnabled);
     setScrollSpeed(editingBadge.scrollSpeed || 20);
-    setTargetType(editingBadge.targetType || "ALL");
-    setTargetIds(editingBadge.targetIds || "");
-    setCollectionIds(editingBadge.collectionIds || "");
-    setBadgeType(editingBadge.type || "CUSTOM");
-    setStockThreshold(editingBadge.stockThreshold || 5);
     setIconDataUrl(editingBadge.iconDataUrl || null);
     setFontFamily(editingBadge.fontFamily || "system");
     setTextTransform(editingBadge.textTransform || "none");
@@ -703,9 +701,6 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
     setBorderColor(editingBadge.borderColor || "#ffffff");
     setShadowStyle(editingBadge.shadowStyle || "none");
     setAnimEffect(editingBadge.animEffect || "none");
-    setShowCountdown(!!editingBadge.showCountdown);
-    setStartsAt(editingBadge.startsAt ? new Date(editingBadge.startsAt).toISOString().slice(0, 16) : "");
-    setEndsAt(editingBadge.endsAt ? new Date(editingBadge.endsAt).toISOString().slice(0, 16) : "");
     if (editingBadge.positionX != null && editingBadge.positionY != null) {
       setPos({ x: editingBadge.positionX, y: editingBadge.positionY });
     } else {
@@ -739,25 +734,6 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
     const reader = new FileReader();
     reader.onload = (ev) => setIconDataUrl(ev.target.result);
     reader.readAsDataURL(file);
-    e.target.value = "";
-  }, []);
-
-  const handleCsvUpload = useCallback((e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target.result;
-      const ids = text.split(/[\r\n,]+/)
-        .map((s) => s.trim().replace(/^gid:\/\/shopify\/Product\//i, "").replace(/[^0-9]/g, ""))
-        .filter((s) => s.length >= 8);
-      const deduped = [...new Set(ids)];
-      setTargetIds((prev) => {
-        const existing = prev.split(",").map((s) => s.trim()).filter(Boolean);
-        return [...new Set([...existing, ...deduped])].join(", ");
-      });
-    };
-    reader.readAsText(file);
     e.target.value = "";
   }, []);
 
@@ -1113,7 +1089,7 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
           {/* Hidden file inputs */}
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{ display: "none" }} />
           <input ref={iconFileInputRef} type="file" accept="image/png,image/svg+xml,image/gif,image/webp" onChange={handleIconUpload} style={{ display: "none" }} />
-          <input ref={csvFileInputRef} type="file" accept=".csv,text/csv" onChange={handleCsvUpload} style={{ display: "none" }} />
+
 
           {/* Upload / change / clear — lives below the preview, never over the image */}
           <div style={{ marginTop: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -1516,100 +1492,8 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
         </div>
       </div>
 
-      {/* ── Targeting + CTA — full width ── */}
-      <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 18 }}>
-
-        {/* Targeting */}
-        <div style={{ paddingTop: 16, borderTop: `1px solid ${t.border}` }}>
-
-          {/* Badge type */}
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>Badge type</div>
-            <div style={{ display: "flex", gap: 6 }}>
-              {chip(badgeType === "CUSTOM", () => setBadgeType("CUSTOM"), "✏ Custom")}
-              {chip(badgeType === "LOW_STOCK", () => setBadgeType("LOW_STOCK"), "📦 Low Stock")}
-            </div>
-            {badgeType === "LOW_STOCK" && (
-              <div style={{ marginTop: 10 }}>
-                <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
-                  Show when stock ≤ {stockThreshold} units
-                </div>
-                <input type="range" min={1} max={50} value={stockThreshold} onChange={(e) => setStockThreshold(Number(e.target.value))}
-                  style={{ width: "100%", accentColor: t.accent, cursor: "pointer" }} />
-                <div style={{ display: "flex", justifyContent: "space-between", color: t.faint, fontSize: 10, marginTop: 2 }}>
-                  <span>1 unit</span><span>50 units</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Apply to */}
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>Apply to</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-              {chip(targetType === "ALL", () => setTargetType("ALL"), "All products")}
-              {chip(targetType === "SPECIFIC", () => setTargetType("SPECIFIC"), "Specific products")}
-              {chip(targetType === "COLLECTION", () => setTargetType("COLLECTION"), "Collections")}
-            </div>
-            {targetType === "SPECIFIC" && (
-              <div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Product IDs</div>
-                  <button onClick={() => csvFileInputRef.current?.click()} style={{ background: "transparent", color: t.uploadColor, border: `1px dashed ${t.uploadBorder}`, borderRadius: 3, padding: "2px 7px", fontSize: 9, cursor: "pointer" }}>
-                    + Import CSV
-                  </button>
-                </div>
-                <textarea
-                  value={targetIds}
-                  onChange={(e) => setTargetIds(e.target.value)}
-                  placeholder="Comma-separated Shopify product IDs&#10;e.g. 1234567890, 9876543210"
-                  rows={3}
-                  style={{ width: "100%", background: t.inputBg, color: t.text, border: `1px solid ${t.border}`, borderRadius: 6, padding: "8px 10px", fontSize: 12, resize: "vertical", fontFamily: "monospace", boxSizing: "border-box" }}
-                />
-              </div>
-            )}
-            {targetType === "COLLECTION" && (
-              <div>
-                <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Collection IDs</div>
-                <textarea
-                  value={collectionIds}
-                  onChange={(e) => setCollectionIds(e.target.value)}
-                  placeholder="Comma-separated Shopify collection IDs&#10;e.g. 123456789, 987654321"
-                  rows={2}
-                  style={{ width: "100%", background: t.inputBg, color: t.text, border: `1px solid ${t.border}`, borderRadius: 6, padding: "8px 10px", fontSize: 12, resize: "vertical", fontFamily: "monospace", boxSizing: "border-box" }}
-                />
-                <div style={{ color: t.faint, fontSize: 10, marginTop: 4 }}>Products in these collections sync automatically when you hit "Sync Inventory".</div>
-              </div>
-            )}
-          </div>
-
-          {/* Schedule */}
-          <div>
-            <div style={{ color: t.dim, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>Schedule (optional)</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <div>
-                <div style={{ color: t.faint, fontSize: 10, marginBottom: 4 }}>Start</div>
-                <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)}
-                  style={{ width: "100%", background: t.inputBg, border: `1px solid ${t.inputBorder}`, borderRadius: 4, padding: "6px 8px", color: t.inputColor, fontSize: 11, outline: "none", boxSizing: "border-box" }} />
-              </div>
-              <div>
-                <div style={{ color: t.faint, fontSize: 10, marginBottom: 4 }}>End</div>
-                <input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)}
-                  style={{ width: "100%", background: t.inputBg, border: `1px solid ${t.inputBorder}`, borderRadius: 4, padding: "6px 8px", color: t.inputColor, fontSize: 11, outline: "none", boxSizing: "border-box" }} />
-              </div>
-            </div>
-            {(startsAt || endsAt) && (
-              <button onClick={() => { setStartsAt(""); setEndsAt(""); }} style={{ marginTop: 6, background: "transparent", color: t.muted, border: "none", fontSize: 10, cursor: "pointer", padding: 0 }}>✕ Clear schedule</button>
-            )}
-            {endsAt && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-                <input type="checkbox" id="showCountdown" checked={showCountdown} onChange={(e) => setShowCountdown(e.target.checked)} />
-                <label htmlFor="showCountdown" style={{ color: t.text, fontSize: 12, cursor: "pointer" }}>Show live countdown instead of label</label>
-              </div>
-            )}
-          </div>
-
-        </div>
+      {/* ── CTA — full width ── */}
+      <div style={{ marginTop: 24 }}>
 
         {/* CTA */}
         <div>
@@ -1640,21 +1524,13 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
                 fd.append("slideFrom", slideFrom);
                 fd.append("scrollingEnabled", String(scrollingEnabled));
                 fd.append("scrollSpeed", String(scrollSpeed));
-                fd.append("type", badgeType);
-                fd.append("stockThreshold", String(stockThreshold));
-                fd.append("targetType", targetType);
-                fd.append("targetIds", targetIds);
-                fd.append("collectionIds", collectionIds);
                 fd.append("iconDataUrl", iconDataUrl || "");
-                fd.append("startsAt", startsAt);
-                fd.append("endsAt", endsAt);
                 fd.append("fontFamily", fontFamily);
                 fd.append("textTransform", textTransform);
                 fd.append("borderWidth", String(borderWidth));
                 fd.append("borderColor", borderColor);
                 fd.append("shadowStyle", shadowStyle);
                 fd.append("animEffect", animEffect);
-                fd.append("showCountdown", String(showCountdown));
                 fetcher.submit(fd, { method: "post" });
                 if (editingBadge) onEditDone();
               }}
@@ -2115,9 +1991,13 @@ function OnboardingChecklist({ shop, themeExtensionEnabled }) {
   );
 }
 
-function MyBadgeCard({ badge, previewImage, fetcher, onEdit, isFirst, isLast, totalProductCount }) {
+function MyBadgeCard({ badge, previewImage, fetcher, onEdit, isFirst, isLast }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [targetingOpen, setTargetingOpen] = useState(false);
+  const [cardTargetType, setCardTargetType] = useState(badge.targetType || "ALL");
+  const [cardTargetIds, setCardTargetIds] = useState(badge.targetIds || "");
+  const [cardCollectionIds, setCardCollectionIds] = useState(badge.collectionIds || "");
 
   const isDeleting =
     fetcher.state !== "idle" &&
@@ -2284,18 +2164,65 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit, isFirst, isLast, to
           {badge.type.replace(/_/g, " ")} · {badge.shape.replace(/_/g, " ")}
         </div>
 
-        {/* Analytics: product count */}
-        <div style={{ fontSize: 11, color: "#aaa", marginBottom: 4 }}>
-          {badge.targetType === "ALL"
-            ? totalProductCount != null ? `${totalProductCount} products` : "All products"
-            : badge.targetType === "COLLECTION"
-            ? (() => { const n = badge.syncedTargetIds?.split(",").filter(Boolean).length ?? 0; return `${n} products (synced)`; })()
-            : badge.type === "LOW_STOCK"
-            ? (() => { const n = badge.syncedTargetIds?.split(",").filter(Boolean).length ?? 0; return `${n} low-stock products`; })()
-            : (() => { const n = badge.targetIds?.split(",").filter(Boolean).length ?? 0; return `${n} product${n !== 1 ? "s" : ""} targeted`; })()
-          }
-          {(badge.startsAt || badge.endsAt) && (
-            <span style={{ marginLeft: 6, color: "#bbb" }}>· 📅 Scheduled</span>
+        {/* Targeting */}
+        <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 8, marginTop: 4 }}>
+          <button
+            onClick={() => setTargetingOpen((v) => !v)}
+            style={{ background: "transparent", border: "none", padding: "2px 0", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, color: "#555", fontSize: 11, fontWeight: 600, width: "100%" }}
+          >
+            <span>Apply to</span>
+            <span style={{ fontSize: 9, display: "inline-block", transition: "transform 0.15s", transform: targetingOpen ? "rotate(180deg)" : "none" }}>▾</span>
+            <span style={{ marginLeft: 4, fontWeight: 400, color: "#aaa" }}>
+              {cardTargetType === "ALL" ? "All products" : cardTargetType === "COLLECTION" ? "Collections" : "Specific products"}
+            </span>
+          </button>
+          {targetingOpen && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
+                {[["ALL", "All products"], ["SPECIFIC", "Specific"], ["COLLECTION", "Collections"]].map(([val, label]) => (
+                  <button
+                    key={val}
+                    onClick={() => setCardTargetType(val)}
+                    style={{
+                      padding: "3px 9px", borderRadius: 99, fontSize: 10, fontWeight: 600, cursor: "pointer",
+                      border: `1.5px solid ${cardTargetType === val ? "#111" : "#ddd"}`,
+                      background: cardTargetType === val ? "#111" : "transparent",
+                      color: cardTargetType === val ? "#fff" : "#555",
+                    }}
+                  >{label}</button>
+                ))}
+              </div>
+              {cardTargetType === "SPECIFIC" && (
+                <textarea
+                  value={cardTargetIds}
+                  onChange={(e) => setCardTargetIds(e.target.value)}
+                  placeholder="Product IDs, comma-separated"
+                  rows={2}
+                  style={{ width: "100%", fontSize: 11, fontFamily: "monospace", border: "1px solid #e1e3e5", borderRadius: 4, padding: "5px 8px", resize: "vertical", boxSizing: "border-box", color: "#333" }}
+                />
+              )}
+              {cardTargetType === "COLLECTION" && (
+                <textarea
+                  value={cardCollectionIds}
+                  onChange={(e) => setCardCollectionIds(e.target.value)}
+                  placeholder="Collection IDs, comma-separated"
+                  rows={2}
+                  style={{ width: "100%", fontSize: 11, fontFamily: "monospace", border: "1px solid #e1e3e5", borderRadius: 4, padding: "5px 8px", resize: "vertical", boxSizing: "border-box", color: "#333" }}
+                />
+              )}
+              <button
+                onClick={() => {
+                  fetcher.submit(
+                    { intent: "update-targeting", badgeId: badge.id, targetType: cardTargetType, targetIds: cardTargetIds, collectionIds: cardCollectionIds },
+                    { method: "post" }
+                  );
+                  setTargetingOpen(false);
+                }}
+                style={{ marginTop: 6, background: "#111", color: "#fff", border: "none", borderRadius: 4, padding: "5px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+              >
+                Save
+              </button>
+            </div>
           )}
         </div>
 
@@ -2345,7 +2272,7 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit, isFirst, isLast, to
 
 // ── Dashboard ────────────────────────────────────────────────
 export default function Dashboard() {
-  const { shop, plan, badges, badgeCount, totalProductCount, themeExtensionEnabled } = useLoaderData();
+  const { shop, plan, badges, badgeCount, themeExtensionEnabled } = useLoaderData();
   const fetcher = useFetcher();
   const syncFetcher = useFetcher();
   const [previewImage, setPreviewImage] = useState(null);
@@ -2534,7 +2461,6 @@ export default function Dashboard() {
                       fetcher={fetcher}
                       isFirst={idx === 0}
                       isLast={idx === badges.length - 1}
-                      totalProductCount={totalProductCount}
                       onEdit={(b) => {
                         setEditingBadge(b);
                         builderRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
