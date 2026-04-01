@@ -1989,8 +1989,40 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit, isFirst, isLast }) 
   const [hovered, setHovered] = useState(false);
   const [targetingOpen, setTargetingOpen] = useState(false);
   const [cardTargetType, setCardTargetType] = useState(badge.targetType || "ALL");
-  const [cardTargetIds, setCardTargetIds] = useState(badge.targetIds || "");
-  const [cardCollectionIds, setCardCollectionIds] = useState(badge.collectionIds || "");
+  const [selectedProductIds, setSelectedProductIds] = useState(() =>
+    new Set((badge.targetIds || "").split(",").map((s) => s.trim()).filter(Boolean))
+  );
+  const [selectedCollectionIds, setSelectedCollectionIds] = useState(() =>
+    new Set((badge.collectionIds || "").split(",").map((s) => s.trim()).filter(Boolean))
+  );
+  const [pickerSearch, setPickerSearch] = useState("");
+  const pickerFetcher = useFetcher();
+
+  // Load picker data when panel first opens
+  useEffect(() => {
+    if (targetingOpen && !pickerFetcher.data && pickerFetcher.state === "idle") {
+      pickerFetcher.load("/app/picker");
+    }
+  }, [targetingOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reload products when search changes (debounced, only in SPECIFIC mode)
+  useEffect(() => {
+    if (!targetingOpen || cardTargetType !== "SPECIFIC") return;
+    const t = setTimeout(() => {
+      pickerFetcher.load(`/app/picker${pickerSearch ? `?q=${encodeURIComponent(pickerSearch)}` : ""}`);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [pickerSearch]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSaveTargeting = () => {
+    const targetIds = cardTargetType === "SPECIFIC" ? [...selectedProductIds].join(",") : "";
+    const collectionIds = cardTargetType === "COLLECTION" ? [...selectedCollectionIds].join(",") : "";
+    fetcher.submit(
+      { intent: "update-targeting", badgeId: badge.id, targetType: cardTargetType, targetIds, collectionIds },
+      { method: "post" }
+    );
+    setTargetingOpen(false);
+  };
 
   const isDeleting =
     fetcher.state !== "idle" &&
@@ -2157,7 +2189,7 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit, isFirst, isLast }) 
           {badge.type.replace(/_/g, " ")} · {badge.shape.replace(/_/g, " ")}
         </div>
 
-        {/* Targeting */}
+        {/* Targeting picker */}
         <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 8, marginTop: 4 }}>
           <button
             onClick={() => setTargetingOpen((v) => !v)}
@@ -2166,55 +2198,135 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit, isFirst, isLast }) 
             <span>Apply to</span>
             <span style={{ fontSize: 9, display: "inline-block", transition: "transform 0.15s", transform: targetingOpen ? "rotate(180deg)" : "none" }}>▾</span>
             <span style={{ marginLeft: 4, fontWeight: 400, color: "#aaa" }}>
-              {cardTargetType === "ALL" ? "All products" : cardTargetType === "COLLECTION" ? "Collections" : "Specific products"}
+              {cardTargetType === "ALL"
+                ? "All products"
+                : cardTargetType === "COLLECTION"
+                ? `${selectedCollectionIds.size} collection${selectedCollectionIds.size !== 1 ? "s" : ""}`
+                : `${selectedProductIds.size} product${selectedProductIds.size !== 1 ? "s" : ""}`}
             </span>
           </button>
+
           {targetingOpen && (
-            <div style={{ marginTop: 8 }}>
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
-                {[["ALL", "All products"], ["SPECIFIC", "Specific"], ["COLLECTION", "Collections"]].map(([val, label]) => (
+            <div style={{ marginTop: 8, border: "1px solid #e1e3e5", borderRadius: 8, overflow: "hidden" }}>
+              {/* Mode tabs */}
+              <div style={{ display: "flex", borderBottom: "1px solid #e1e3e5" }}>
+                {[["ALL", "All"], ["SPECIFIC", "Products"], ["COLLECTION", "Collections"]].map(([val, lbl]) => (
                   <button
                     key={val}
                     onClick={() => setCardTargetType(val)}
                     style={{
-                      padding: "3px 9px", borderRadius: 99, fontSize: 10, fontWeight: 600, cursor: "pointer",
-                      border: `1.5px solid ${cardTargetType === val ? "#111" : "#ddd"}`,
-                      background: cardTargetType === val ? "#111" : "transparent",
-                      color: cardTargetType === val ? "#fff" : "#555",
+                      flex: 1, padding: "8px 4px", border: "none", cursor: "pointer",
+                      borderBottom: cardTargetType === val ? "2px solid #111" : "2px solid transparent",
+                      background: "transparent", fontSize: 11, fontWeight: 600,
+                      color: cardTargetType === val ? "#111" : "#999",
                     }}
-                  >{label}</button>
+                  >{lbl}</button>
                 ))}
               </div>
-              {cardTargetType === "SPECIFIC" && (
-                <textarea
-                  value={cardTargetIds}
-                  onChange={(e) => setCardTargetIds(e.target.value)}
-                  placeholder="Product IDs, comma-separated"
-                  rows={2}
-                  style={{ width: "100%", fontSize: 11, fontFamily: "monospace", border: "1px solid #e1e3e5", borderRadius: 4, padding: "5px 8px", resize: "vertical", boxSizing: "border-box", color: "#333" }}
-                />
-              )}
-              {cardTargetType === "COLLECTION" && (
-                <textarea
-                  value={cardCollectionIds}
-                  onChange={(e) => setCardCollectionIds(e.target.value)}
-                  placeholder="Collection IDs, comma-separated"
-                  rows={2}
-                  style={{ width: "100%", fontSize: 11, fontFamily: "monospace", border: "1px solid #e1e3e5", borderRadius: 4, padding: "5px 8px", resize: "vertical", boxSizing: "border-box", color: "#333" }}
-                />
-              )}
-              <button
-                onClick={() => {
-                  fetcher.submit(
-                    { intent: "update-targeting", badgeId: badge.id, targetType: cardTargetType, targetIds: cardTargetIds, collectionIds: cardCollectionIds },
-                    { method: "post" }
-                  );
-                  setTargetingOpen(false);
-                }}
-                style={{ marginTop: 6, background: "#111", color: "#fff", border: "none", borderRadius: 4, padding: "5px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
-              >
-                Save
-              </button>
+
+              <div style={{ padding: 10 }}>
+                {/* ALL mode */}
+                {cardTargetType === "ALL" && (
+                  <div style={{ textAlign: "center", padding: "10px 0", color: "#777", fontSize: 12 }}>
+                    Badge will appear on all products
+                  </div>
+                )}
+
+                {/* SPECIFIC products mode */}
+                {cardTargetType === "SPECIFIC" && (
+                  <>
+                    <input
+                      type="text"
+                      value={pickerSearch}
+                      onChange={(e) => setPickerSearch(e.target.value)}
+                      placeholder="Search products…"
+                      style={{ width: "100%", border: "1px solid #e1e3e5", borderRadius: 4, padding: "5px 8px", fontSize: 12, marginBottom: 6, boxSizing: "border-box", outline: "none" }}
+                    />
+                    <div style={{ maxHeight: 190, overflowY: "auto", borderRadius: 4, border: "1px solid #f0f0f0" }}>
+                      {pickerFetcher.state !== "idle" ? (
+                        <div style={{ padding: 12, textAlign: "center", color: "#aaa", fontSize: 12 }}>Loading…</div>
+                      ) : (pickerFetcher.data?.products ?? []).length === 0 ? (
+                        <div style={{ padding: 12, textAlign: "center", color: "#bbb", fontSize: 12 }}>No products found</div>
+                      ) : (pickerFetcher.data?.products ?? []).map((p) => (
+                        <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", cursor: "pointer", borderBottom: "1px solid #fafafa", background: selectedProductIds.has(p.id) ? "#f9f9ff" : "transparent" }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedProductIds.has(p.id)}
+                            onChange={(e) => {
+                              const next = new Set(selectedProductIds);
+                              if (e.target.checked) next.add(p.id); else next.delete(p.id);
+                              setSelectedProductIds(next);
+                            }}
+                            style={{ flexShrink: 0, accentColor: "#111" }}
+                          />
+                          {p.image
+                            ? <img src={p.image} alt="" style={{ width: 30, height: 30, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} />
+                            : <div style={{ width: 30, height: 30, background: "#eee", borderRadius: 4, flexShrink: 0 }} />
+                          }
+                          <span style={{ fontSize: 12, color: "#333", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {selectedProductIds.size > 0 && (
+                      <div style={{ marginTop: 5, fontSize: 11, color: "#666" }}>
+                        {selectedProductIds.size} product{selectedProductIds.size !== 1 ? "s" : ""} selected
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* COLLECTION mode */}
+                {cardTargetType === "COLLECTION" && (
+                  <>
+                    <div style={{ maxHeight: 220, overflowY: "auto", borderRadius: 4, border: "1px solid #f0f0f0" }}>
+                      {pickerFetcher.state !== "idle" ? (
+                        <div style={{ padding: 12, textAlign: "center", color: "#aaa", fontSize: 12 }}>Loading…</div>
+                      ) : (pickerFetcher.data?.collections ?? []).length === 0 ? (
+                        <div style={{ padding: 12, textAlign: "center", color: "#bbb", fontSize: 12 }}>No collections found</div>
+                      ) : (pickerFetcher.data?.collections ?? []).map((c) => (
+                        <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 8px", cursor: "pointer", borderBottom: "1px solid #fafafa", background: selectedCollectionIds.has(c.id) ? "#f9f9ff" : "transparent" }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedCollectionIds.has(c.id)}
+                            onChange={(e) => {
+                              const next = new Set(selectedCollectionIds);
+                              if (e.target.checked) next.add(c.id); else next.delete(c.id);
+                              setSelectedCollectionIds(next);
+                            }}
+                            style={{ flexShrink: 0, accentColor: "#111" }}
+                          />
+                          {c.image
+                            ? <img src={c.image} alt="" style={{ width: 30, height: 30, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} />
+                            : <div style={{ width: 30, height: 30, background: "#eee", borderRadius: 4, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>📁</div>
+                          }
+                          <span style={{ fontSize: 12, color: "#333" }}>{c.title}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {selectedCollectionIds.size > 0 && (
+                      <div style={{ marginTop: 5, fontSize: 11, color: "#666" }}>
+                        {selectedCollectionIds.size} collection{selectedCollectionIds.size !== 1 ? "s" : ""} selected · run "Sync Inventory" to apply
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Save / Cancel */}
+                <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                  <button
+                    onClick={handleSaveTargeting}
+                    style={{ background: "#111", color: "#fff", border: "none", borderRadius: 4, padding: "6px 14px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setTargetingOpen(false)}
+                    style={{ background: "transparent", border: "1px solid #ddd", borderRadius: 4, padding: "6px 10px", fontSize: 11, cursor: "pointer", color: "#666" }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
