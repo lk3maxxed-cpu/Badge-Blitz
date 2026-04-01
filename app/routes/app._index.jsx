@@ -163,12 +163,12 @@ export async function action({ request }) {
     if (!label || !label.trim()) return data({ error: "Label is required." }, { status: 400 });
     const px = formData.get("px");
     const py = formData.get("py");
-    const startsAtRaw = formData.get("startsAt");
-    const endsAtRaw = formData.get("endsAt");
+    // Note: targeting fields (targetType, targetIds, collectionIds) are intentionally
+    // excluded here — they are managed separately via the update-targeting intent
+    // so that editing badge appearance never resets targeting.
     await db.badge.update({
       where: { id: badgeId },
       data: {
-        type: formData.get("type") || "CUSTOM",
         label: label.trim(),
         color: formData.get("color") || "#FF4136",
         textColor: formData.get("textColor") || "#FFFFFF",
@@ -187,20 +187,13 @@ export async function action({ request }) {
         slideFrom: formData.get("slideFrom") || "LEFT",
         scrollingEnabled: formData.get("scrollingEnabled") === "true",
         scrollSpeed: parseInt(formData.get("scrollSpeed") || "20", 10),
-        stockThreshold: parseInt(formData.get("stockThreshold") || "5", 10),
-        targetType: formData.get("targetType") || "ALL",
-        targetIds: formData.get("targetIds") || null,
-        collectionIds: formData.get("collectionIds") || null,
         iconDataUrl: formData.get("iconDataUrl") || null,
-        startsAt: startsAtRaw ? new Date(startsAtRaw) : null,
-        endsAt: endsAtRaw ? new Date(endsAtRaw) : null,
         fontFamily: formData.get("fontFamily") || "system",
         textTransform: formData.get("textTransform") || "none",
         borderWidth: parseInt(formData.get("borderWidth") || "0", 10),
         borderColor: formData.get("borderColor") || "#ffffff",
         shadowStyle: formData.get("shadowStyle") || "none",
         animEffect: formData.get("animEffect") || "none",
-        showCountdown: formData.get("showCountdown") === "true",
       },
     });
     return data({ success: true });
