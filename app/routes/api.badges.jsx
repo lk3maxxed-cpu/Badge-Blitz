@@ -19,27 +19,18 @@ function isRateLimited(ip) {
   return entry.count > RATE_LIMIT;
 }
 
-// Only allow requests from *.myshopify.com origins
-function getAllowedOrigin(request) {
-  const origin = request.headers.get("Origin") || "";
-  if (/^https?:\/\/[a-z0-9-]+\.myshopify\.com$/i.test(origin)) {
-    return origin;
-  }
-  return null;
-}
-
-function getCorsHeaders(request) {
-  const origin = getAllowedOrigin(request);
+// Allow any origin — badge data is public (only active badges for installed shops).
+// Custom Shopify store domains need this to be a wildcard.
+function getCorsHeaders() {
   return {
-    "Access-Control-Allow-Origin": origin || "null",
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
-    "Vary": "Origin",
   };
 }
 
 export async function loader({ request }) {
-  const corsHeaders = getCorsHeaders(request);
+  const corsHeaders = getCorsHeaders();
 
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });

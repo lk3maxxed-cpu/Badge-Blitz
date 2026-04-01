@@ -7,31 +7,6 @@
 
   if (!shop || !apiUrl) return;
 
-  // Product card selectors — covers Dawn, Debut, Brooklyn, and most popular themes
-  var CARD_SELECTORS = [
-    "[data-product-id]",
-    ".product-card",
-    ".product-item",
-    ".grid-product",
-    ".card-wrapper",
-    ".product-block",
-    ".product-grid-item",
-    "[class*='product-card']",
-    "[class*='productCard']",
-    "[class*='product_card']",
-  ].join(",");
-
-  // Image container selectors within a card
-  var IMG_CONTAINER_SELECTORS = [
-    ".card__media",
-    ".product-card__image",
-    ".product__media",
-    ".grid-product__image-wrapper",
-    ".product-image-container",
-    "figure",
-    ".card__image",
-  ].join(",");
-
   // ── Animation keyframes (injected once) ───────────────────────────────────
   var STYLE_ID = "badge-blitz-styles";
   if (!document.getElementById(STYLE_ID)) {
@@ -44,7 +19,8 @@
       "@keyframes bb-pulse-bar{0%,100%{transform:translateY(-50%) scale(1)}50%{transform:translateY(-50%) scale(1.04)}}",
       "@keyframes bb-glow{0%,100%{opacity:1;filter:brightness(1)}50%{opacity:0.85;filter:brightness(1.4)}}",
       "@keyframes bb-shimmer{0%{background-position:200% center}100%{background-position:-200% center}}",
-      "@keyframes bb-confetti-fall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(60px) rotate(360deg);opacity:0}}",
+      // Overlay wrapper that sits over the image area without being clipped
+      ".bb-overlay{position:absolute;inset:0;pointer-events:none;z-index:99;overflow:visible!important}",
     ].join("\n");
     document.head.appendChild(styleEl);
   }
@@ -87,35 +63,6 @@
     tick();
   }
 
-  // ── Confetti burst ─────────────────────────────────────────────────────────
-  var CONFETTI_COLORS = ["#ff4136","#ffdc00","#2ecc40","#0074d9","#ff69b4","#ff8c00"];
-  function triggerConfetti(el) {
-    var rect = el.getBoundingClientRect();
-    var container = el.offsetParent || document.body;
-    var containerRect = container.getBoundingClientRect();
-    var cx = rect.left - containerRect.left + rect.width / 2;
-    var cy = rect.top  - containerRect.top  + rect.height / 2;
-
-    for (var i = 0; i < 12; i++) {
-      var dot = document.createElement("span");
-      dot.style.cssText = [
-        "position:absolute",
-        "width:6px",
-        "height:6px",
-        "border-radius:50%",
-        "pointer-events:none",
-        "z-index:9999",
-        "background:" + CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-        "left:" + (cx + (Math.random() - 0.5) * 40) + "px",
-        "top:" + cy + "px",
-        "animation:bb-confetti-fall 0.7s ease forwards",
-        "animation-delay:" + (i * 40) + "ms",
-      ].join(";");
-      container.appendChild(dot);
-      setTimeout(function (d) { d.remove(); }, 900 + i * 40, dot);
-    }
-  }
-
   // ── 3D tilt for a card ─────────────────────────────────────────────────────
   function attach3DTilt(card, el) {
     var imgContainer = el.parentElement || card;
@@ -125,10 +72,8 @@
       var cy = rect.top  + rect.height / 2;
       var dx = (e.clientX - cx) / (rect.width  / 2);
       var dy = (e.clientY - cy) / (rect.height / 2);
-      var rotY =  dx * 18;
-      var rotX = -dy * 18;
       var base = el.dataset.baseTransform || "";
-      el.style.transform = base + " perspective(400px) rotateY(" + rotY + "deg) rotateX(" + rotX + "deg) scale(1.06)";
+      el.style.transform = base + " perspective(400px) rotateY(" + (dx * 18) + "deg) rotateX(" + (-dy * 18) + "deg) scale(1.06)";
       el.style.transition = "transform 0.05s linear";
     }
     function onLeave() {
@@ -152,7 +97,7 @@
   }
   var STARBURST = starburstPath(14, 50, 38);
 
-  // ── Apply shared design properties (font, border, shadow, etc.) ───────────
+  // ── Design props ──────────────────────────────────────────────────────────
   function applyDesignProps(el, badge) {
     if (badge.fontFamily && FONT_FAMILIES[badge.fontFamily]) {
       el.style.fontFamily = FONT_FAMILIES[badge.fontFamily];
@@ -169,7 +114,6 @@
     }
   }
 
-  // ── Apply animation style ──────────────────────────────────────────────────
   function applyAnimEffect(el, badge, isBar) {
     var effect = badge.animEffect;
     if (effect === "pulse") {
@@ -177,61 +121,311 @@
     } else if (effect === "glow") {
       el.style.animation = "bb-glow 2s ease-in-out infinite";
     } else if (effect === "shimmer") {
-      var shimmerBg = "linear-gradient(120deg," + badge.color + " 0%," + badge.color + " 30%,#fff9 50%," + badge.color + " 70%," + badge.color + " 100%)";
-      el.style.backgroundImage = shimmerBg;
+      el.style.backgroundImage = "linear-gradient(120deg," + badge.color + " 0%," + badge.color + " 30%,#fff9 50%," + badge.color + " 70%," + badge.color + " 100%)";
       el.style.backgroundSize = "200% auto";
       el.style.animation = "bb-shimmer 2.4s linear infinite";
     }
-    // confetti and 3d are handled in the event listener section
   }
 
-  // ── Main badge element factory ─────────────────────────────────────────────
-  function applyBadgeStyles(el, badge) {
-    var shape = badge.shape;
-    var size  = badge.size || 12;
-    var isCircle = shape === "CIRCLE";
+  // ── Card detection ────────────────────────────────────────────────────────
+  // Strategy A: known CSS selectors from popular themes
+  var KNOWN_SELECTORS = [
+    "[data-product-id]",
+    ".product-card",
+    ".product-item",
+    ".product-block",
+    ".product-grid-item",
+    ".grid-product",
+    ".card-wrapper",
+    ".product-card-wrapper",
+    ".boost-sd__product-item",     // Boost Commerce
+    ".ais-hits--item",             // Algolia
+    ".bc-product-grid-item",       // BC theme
+    "[class*='ProductItem']",
+    "[class*='product-card']",
+    "[class*='product_card']",
+    "[class*='productCard']",
+    "[class*='product-item']",
+    "[class*='grid-product']",
+  ].join(",");
 
-    el.style.fontSize = size + "px";
-    el.style.color    = badge.textColor;
-    if (badge.gradientEnabled && badge.gradientColorEnd) {
-      el.style.background = "linear-gradient(" + (badge.gradientDirection || "to right") + ", " + badge.color + ", " + badge.gradientColorEnd + ")";
-    } else {
-      el.style.backgroundColor = badge.color;
-    }
-
-    if (isCircle) {
-      el.style.padding       = Math.round(size * 0.6) + "px";
-      el.style.aspectRatio   = "1";
-      el.style.display       = "flex";
-      el.style.alignItems    = "center";
-      el.style.justifyContent = "center";
-      el.style.textAlign     = "center";
-      el.style.borderRadius  = "50%";
-      if (badge.edgeStyle === "RIDGED") {
-        el.style.clipPath    = STARBURST;
-        el.style.borderRadius = "0";
+  // Strategy B: walk up from any product link to find its card ancestor
+  function findCardsFromLinks() {
+    var seen  = [];
+    var links = document.querySelectorAll('a[href*="/products/"]');
+    links.forEach(function (link) {
+      var el = link.parentElement;
+      var tries = 0;
+      while (el && el !== document.body && tries < 8) {
+        tries++;
+        var rect = el.getBoundingClientRect();
+        // A card is a block element taller than 80px that contains an image
+        if (rect.height > 80 && el.querySelector("img")) {
+          if (seen.indexOf(el) === -1) seen.push(el);
+          break;
+        }
+        el = el.parentElement;
       }
-    }
-
-    if (badge.positionX != null && badge.positionY != null) {
-      el.style.left      = badge.positionX + "%";
-      el.style.top       = badge.positionY + "%";
-      el.style.transform = "translate(-50%, -50%)";
-    }
-
-    applyDesignProps(el, badge);
+    });
+    return seen;
   }
 
+  function getCards() {
+    var bySelector = Array.from(document.querySelectorAll(KNOWN_SELECTORS));
+    if (bySelector.length) return bySelector;
+    var byLink = findCardsFromLinks();
+    return byLink;
+  }
+
+  // ── Image container inside a card ─────────────────────────────────────────
+  var IMG_CONTAINER_SELECTORS = [
+    ".card__media",
+    ".card__image",
+    ".product-card__image",
+    ".product-card__image-wrapper",
+    ".product__media",
+    ".grid-product__image-wrapper",
+    ".product-image-container",
+    ".product-image",
+    ".product-item__image-wrapper",
+    "figure",
+  ].join(",");
+
+  function getImageContainer(card) {
+    return (
+      card.querySelector(IMG_CONTAINER_SELECTORS) ||
+      (card.querySelector("img") ? card.querySelector("img").parentElement : null) ||
+      card
+    );
+  }
+
+  // ── Get product numeric ID from a card element ─────────────────────────────
+  function getProductId(card) {
+    // Attribute on the card itself
+    var id = card.dataset.productId || card.dataset.id || card.dataset.product;
+    if (id) return id.replace("gid://shopify/Product/", "");
+    // Attribute on a child element
+    var child = card.querySelector("[data-product-id]") || card.querySelector("[data-product]");
+    if (child) {
+      var cid = child.dataset.productId || child.dataset.product || "";
+      return cid.replace("gid://shopify/Product/", "");
+    }
+    // Extract from an add-to-cart form
+    var form = card.querySelector("form[action*='/cart/add']");
+    if (form) {
+      var input = form.querySelector("[name='id']");
+      if (input) return input.value;
+    }
+    // Extract from a product link URL — /products/handle doesn't give ID, skip
+    return null;
+  }
+
+  // ── Badge visibility: should this badge appear on this card? ──────────────
+  function shouldShowBadge(badge, productId) {
+    if (badge.targetType === "SPECIFIC") {
+      if (!productId) return false; // no ID = can't verify, skip
+      var ids = (badge.targetIds || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+      if (!ids.length) return false;
+      var matched = ids.some(function (id) {
+        return id === productId || id === productId.toString();
+      });
+      return matched;
+    }
+    return true; // ALL or any other type
+  }
+
+  // ── Create a badge DOM element ─────────────────────────────────────────────
   function cpRadiusMap(corner, r) {
     var px = r + "px";
     return { TOP_LEFT: "0 0 " + px + " 0", TOP_RIGHT: "0 0 0 " + px, BOTTOM_LEFT: "0 " + px + " 0 0", BOTTOM_RIGHT: px + " 0 0 0" }[corner] || ("0 0 " + px + " 0");
   }
 
+  function createBadgeElement(badge, card) {
+    var isBar = badge.shape === "BAR";
+    var isCp  = badge.shape === "CORNER_POP";
+    var el    = document.createElement((isBar || isCp) ? "div" : "span");
+    el.className = "badge-blitz-badge";
+    el.dataset.shape    = badge.shape;
+    el.dataset.position = badge.position || "";
+
+    // ── CORNER_POP ──────────────────────────────────────────────────────────
+    if (isCp) {
+      var corner   = badge.position || "TOP_LEFT";
+      var sz       = badge.size || 12;
+      var isBottom = corner.indexOf("BOTTOM") !== -1;
+      var isRight  = corner.indexOf("RIGHT")  !== -1;
+      var vPad     = Math.round(sz * 0.55);
+      var hPad     = Math.round(sz * 1.0);
+      var r        = Math.round(sz * 1.4);
+      el.style.cssText = [
+        "position:absolute",
+        isBottom ? "top:auto;bottom:0" : "top:0;bottom:auto",
+        isRight  ? "left:auto;right:0" : "left:0;right:auto",
+        "border-radius:" + cpRadiusMap(corner, r),
+        "padding:" + vPad + "px " + hPad + "px",
+        "font-size:" + sz + "px",
+        "font-weight:700",
+        "letter-spacing:0.4px",
+        "line-height:1.2",
+        "white-space:nowrap",
+        "color:" + badge.textColor,
+        "z-index:10",
+        "pointer-events:none",
+      ].join(";");
+      if (badge.gradientEnabled && badge.gradientColorEnd) {
+        el.style.background = "linear-gradient(" + (badge.gradientDirection || "to right") + "," + badge.color + "," + badge.gradientColorEnd + ")";
+      } else {
+        el.style.backgroundColor = badge.color;
+      }
+      applyDesignProps(el, badge);
+      if (badge.showCountdown && badge.endsAt) {
+        startCountdown(el, badge.endsAt);
+      } else {
+        el.textContent = badge.label;
+      }
+      var cpHoverOnly  = !!badge.hoverOnly;
+      var cpSlideIn    = !!badge.slideIn;
+      var cpDuration   = badge.hoverDuration || 300;
+      var cpSlideOff   = { LEFT: "translateX(-300%)", RIGHT: "translateX(300%)", TOP: "translateY(-300%)", BOTTOM: "translateY(300%)" }[badge.slideFrom] || "translateX(-300%)";
+      var cpHidden     = cpHoverOnly || cpSlideIn;
+      el.style.transition = "transform 0.25s ease,box-shadow 0.25s ease" +
+        (cpHidden  ? ",opacity " + cpDuration + "ms ease"                         : "") +
+        (cpSlideIn ? ",transform " + cpDuration + "ms cubic-bezier(0.4,0,0.2,1)" : "");
+      if (cpHidden)  el.style.opacity   = "0";
+      if (cpSlideIn) el.style.transform = "scale(1) " + cpSlideOff;
+      applyAnimEffect(el, badge, false);
+      card.addEventListener("mouseenter", function () {
+        el.style.transform = "scale(1.18)";
+        el.style.boxShadow = "0 6px 18px rgba(0,0,0,0.32)";
+        if (cpHidden) el.style.opacity = "1";
+      });
+      card.addEventListener("mouseleave", function () {
+        el.style.transform = cpSlideIn ? "scale(1) " + cpSlideOff : "scale(1)";
+        el.style.boxShadow = "none";
+        if (cpHidden) el.style.opacity = "0";
+      });
+      return el;
+    }
+
+    // ── BAR ─────────────────────────────────────────────────────────────────
+    if (isBar) {
+      var yPct = badge.positionY != null ? badge.positionY : 0;
+      el.style.cssText = [
+        "position:absolute",
+        "left:0;right:0;width:100%",
+        "overflow:hidden",
+        "padding:7px 0",
+        "font-weight:700",
+        "letter-spacing:0.5px",
+        "font-size:" + (badge.size || 12) + "px",
+        "color:" + badge.textColor,
+        "top:" + yPct + "%",
+        "transform:translateY(-50%)",
+        "z-index:10",
+        "pointer-events:none",
+        "text-align:center",
+      ].join(";");
+      el.dataset.baseTransform = "translateY(-50%)";
+      if (badge.gradientEnabled && badge.gradientColorEnd) {
+        el.style.background = "linear-gradient(" + (badge.gradientDirection || "to right") + "," + badge.color + "," + badge.gradientColorEnd + ")";
+      } else {
+        el.style.backgroundColor = badge.color;
+      }
+      applyDesignProps(el, badge);
+      applyAnimEffect(el, badge, true);
+      if (badge.scrollingEnabled) {
+        var inner = document.createElement("span");
+        inner.className = "badge-blitz-bar__scroll";
+        inner.textContent = (badge.label + "\u00a0\u00a0\u00b7\u00a0\u00a0").repeat(20);
+        inner.style.setProperty("--bb-scroll-duration", (badge.scrollSpeed || 20) + "s");
+        el.appendChild(inner);
+      } else if (badge.showCountdown && badge.endsAt) {
+        startCountdown(el, badge.endsAt);
+      } else {
+        el.textContent = badge.label;
+      }
+      return el;
+    }
+
+    // ── LINED starburst ───────────────────────────────────────────────────────
+    if (badge.shape === "CIRCLE" && badge.edgeStyle === "LINED") {
+      var ls  = badge.size || 12;
+      var ld  = Math.round(ls * 3.8 + 8);
+      var lCol = badge.borderColor || "#ffffff";
+      var lBg  = (badge.gradientEnabled && badge.gradientColorEnd)
+        ? "linear-gradient(" + (badge.gradientDirection || "to right") + "," + badge.color + "," + badge.gradientColorEnd + ")"
+        : badge.color;
+      el.style.cssText = [
+        "position:absolute",
+        "width:" + ld + "px;height:" + ld + "px",
+        "left:" + (badge.positionX != null ? badge.positionX : 12) + "%",
+        "top:"  + (badge.positionY != null ? badge.positionY : 12) + "%",
+        "transform:translate(-50%,-50%)",
+        "background:" + lCol,
+        "clip-path:" + STARBURST,
+        "display:flex;align-items:center;justify-content:center",
+        "z-index:10;pointer-events:none",
+        badge.shadowStyle && badge.shadowStyle !== "none" ? "box-shadow:" + shadowCSS(badge.shadowStyle, badge.color) : "",
+      ].join(";");
+      el.dataset.baseTransform = "translate(-50%,-50%)";
+      var innerEl = document.createElement("span");
+      innerEl.style.cssText = "width:84%;height:84%;clip-path:" + STARBURST + ";display:flex;align-items:center;justify-content:center;font-weight:700;font-size:" + ls + "px;color:" + badge.textColor + ";background:" + lBg;
+      if (FONT_FAMILIES[badge.fontFamily]) innerEl.style.fontFamily = FONT_FAMILIES[badge.fontFamily];
+      if (badge.textTransform && badge.textTransform !== "none") innerEl.style.textTransform = badge.textTransform;
+      innerEl.textContent = badge.label;
+      applyAnimEffect(innerEl, badge, false);
+      el.appendChild(innerEl);
+      return el;
+    }
+
+    // ── PILL / CIRCLE / default ──────────────────────────────────────────────
+    var px = badge.positionX != null ? badge.positionX : 12;
+    var py = badge.positionY != null ? badge.positionY : 12;
+    var isCircle = badge.shape === "CIRCLE";
+    var circleSize = Math.round((badge.size || 12) * 0.6);
+    el.style.cssText = [
+      "position:absolute",
+      "left:" + px + "%;top:" + py + "%",
+      "transform:translate(-50%,-50%)",
+      "font-size:" + (badge.size || 12) + "px",
+      "font-weight:700",
+      "letter-spacing:0.4px",
+      "line-height:1",
+      "white-space:nowrap",
+      "color:" + badge.textColor,
+      "z-index:10",
+      "pointer-events:none",
+      isCircle ? ("padding:" + circleSize + "px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:" + (badge.edgeStyle === "RIDGED" ? "0" : "50%")) : "padding:4px 10px;border-radius:999px",
+      isCircle && badge.edgeStyle === "RIDGED" ? "clip-path:" + STARBURST : "",
+    ].join(";");
+    if (badge.gradientEnabled && badge.gradientColorEnd) {
+      el.style.background = "linear-gradient(" + (badge.gradientDirection || "to right") + "," + badge.color + "," + badge.gradientColorEnd + ")";
+    } else {
+      el.style.backgroundColor = badge.color;
+    }
+    el.dataset.baseTransform = "translate(-50%,-50%)";
+    applyDesignProps(el, badge);
+    applyAnimEffect(el, badge, false);
+
+    if (badge.showCountdown && badge.endsAt) {
+      startCountdown(el, badge.endsAt);
+    } else if (badge.iconDataUrl) {
+      var img = document.createElement("img");
+      img.src = badge.iconDataUrl;
+      img.style.cssText = "width:1.4em;height:1.4em;object-fit:contain;display:block;pointer-events:none";
+      el.appendChild(img);
+    } else {
+      el.textContent = badge.label;
+    }
+    return el;
+  }
+
+  // ── Fetch badges from the API ──────────────────────────────────────────────
   function fetchBadges(callback) {
     var url = apiUrl.replace(/\/$/, "") + "/api/badges?shop=" + encodeURIComponent(shop);
     var xhr = new XMLHttpRequest();
     xhr.open("GET", url, true);
-    xhr.timeout = 6000;
+    xhr.timeout = 8000;
     xhr.ontimeout = function () { callback([]); };
     xhr.onreadystatechange = function () {
       if (xhr.readyState === 4) {
@@ -245,269 +439,61 @@
     xhr.send();
   }
 
-  function getProductId(card) {
-    return (
-      card.dataset.productId ||
-      card.dataset.id ||
-      (card.querySelector("[data-product-id]") && card.querySelector("[data-product-id]").dataset.productId) ||
-      null
-    );
-  }
-
-  function getImageContainer(card) {
-    return (
-      card.querySelector(IMG_CONTAINER_SELECTORS) ||
-      (card.querySelector("img") && card.querySelector("img").parentElement) ||
-      card
-    );
-  }
-
-  function hasSaleIndicator(card) {
-    return !!(
-      card.querySelector("[class*='compare'], [class*='was-price'], [class*='original-price'], s, del, .on-sale, [class*='sale-badge']") ||
-      card.classList.contains("on-sale") ||
-      card.classList.contains("sale")
-    );
-  }
-
-  function shouldShowBadge(badge, card, productId) {
-    if (badge.targetType === "SPECIFIC" && productId) {
-      var ids = (badge.targetIds || "").split(",").map(function (s) { return s.trim(); });
-      var numericId = productId.toString().replace("gid://shopify/Product/", "");
-      var matched = ids.some(function (id) {
-        return id === productId || id === numericId || id.indexOf(numericId) !== -1;
-      });
-      if (!matched) return false;
-    }
-    if (badge.type === "SALE" && badge.autoDiscount) {
-      if (!hasSaleIndicator(card)) return false;
-    }
-    return true;
-  }
-
-  function createBadgeElement(badge, card) {
-    var isBar = badge.shape === "BAR";
-    var isCp  = badge.shape === "CORNER_POP";
-    var el = document.createElement((isBar || isCp) ? "div" : "span");
-    el.className = "badge-blitz-badge";
-    el.dataset.shape    = badge.shape;
-    el.dataset.position = badge.position;
-
-    // ── CORNER_POP ──────────────────────────────────────────────────────────
-    if (isCp) {
-      var corner   = badge.position || "TOP_LEFT";
-      var size     = badge.size || 12;
-      var isBottom = corner.indexOf("BOTTOM") !== -1;
-      var isRight  = corner.indexOf("RIGHT")  !== -1;
-      var vPad     = Math.round(size * 0.55);
-      var hPad     = Math.round(size * 1.0);
-      var r        = Math.round(size * 1.4);
-
-      el.style.position      = "absolute";
-      el.style.top           = isBottom ? "auto" : "0";
-      el.style.bottom        = isBottom ? "0"    : "auto";
-      el.style.left          = isRight  ? "auto" : "0";
-      el.style.right         = isRight  ? "0"    : "auto";
-      el.style.borderRadius  = cpRadiusMap(corner, r);
-      el.style.padding       = vPad + "px " + hPad + "px";
-      el.style.fontSize      = size + "px";
-      el.style.fontWeight    = "700";
-      el.style.letterSpacing = "0.4px";
-      el.style.lineHeight    = "1.2";
-      el.style.whiteSpace    = "nowrap";
-      el.style.transformOrigin = (isBottom ? "bottom" : "top") + " " + (isRight ? "right" : "left");
-      el.style.color = badge.textColor;
-      if (badge.gradientEnabled && badge.gradientColorEnd) {
-        el.style.background = "linear-gradient(" + (badge.gradientDirection || "to right") + ", " + badge.color + ", " + badge.gradientColorEnd + ")";
-      } else {
-        el.style.backgroundColor = badge.color;
-      }
-      applyDesignProps(el, badge);
-
-      if (badge.showCountdown && badge.endsAt) {
-        startCountdown(el, badge.endsAt);
-      } else {
-        el.textContent = badge.label;
-      }
-
-      var cpHoverOnly   = !!badge.hoverOnly;
-      var cpSlideIn     = !!badge.slideIn;
-      var cpDuration    = badge.hoverDuration || 300;
-      var cpSlideOffsets = { LEFT: "translateX(-300%)", RIGHT: "translateX(300%)", TOP: "translateY(-300%)", BOTTOM: "translateY(300%)" };
-      var cpSlideOffset  = cpSlideIn ? (cpSlideOffsets[badge.slideFrom] || cpSlideOffsets.LEFT) : "";
-      var cpHidden = cpHoverOnly || cpSlideIn;
-
-      el.style.transition = "transform 0.25s ease, box-shadow 0.25s ease"
-        + (cpHidden   ? ", opacity " + cpDuration + "ms ease" : "")
-        + (cpSlideIn  ? ", transform " + cpDuration + "ms cubic-bezier(0.4,0,0.2,1)" : "");
-      if (cpHidden)  el.style.opacity   = "0";
-      if (cpSlideIn) el.style.transform = "scale(1) " + cpSlideOffset;
-
-      applyAnimEffect(el, badge, false);
-
-      card.addEventListener("mouseenter", function () {
-        el.style.transform = "scale(1.18)";
-        el.style.boxShadow = "0 6px 18px rgba(0,0,0,0.32)";
-        if (cpHidden) el.style.opacity = "1";
-        // confetti removed
-      });
-      card.addEventListener("mouseleave", function () {
-        el.style.transform = cpSlideIn ? "scale(1) " + cpSlideOffset : "scale(1)";
-        el.style.boxShadow = "none";
-        if (cpHidden) el.style.opacity = "0";
-      });
-
-      return el;
-    }
-
-    // ── BAR ─────────────────────────────────────────────────────────────────
-    if (isBar) {
-      el.style.position = "absolute";
-      el.style.left     = "0";
-      el.style.right    = "0";
-      el.style.width    = "100%";
-      el.style.overflow = "hidden";
-      el.style.padding  = "7px 0";
-      el.style.fontWeight    = "700";
-      el.style.letterSpacing = "0.5px";
-      el.style.fontSize      = (badge.size || 12) + "px";
-      el.style.color         = badge.textColor;
-      if (badge.gradientEnabled && badge.gradientColorEnd) {
-        el.style.background = "linear-gradient(" + (badge.gradientDirection || "to right") + ", " + badge.color + ", " + badge.gradientColorEnd + ")";
-      } else {
-        el.style.backgroundColor = badge.color;
-      }
-      var yPct = badge.positionY != null ? badge.positionY : 0;
-      el.style.top       = yPct + "%";
-      el.style.transform = "translateY(-50%)";
-      el.dataset.baseTransform = "translateY(-50%)";
-      applyDesignProps(el, badge);
-      applyAnimEffect(el, badge, true);
-
-      if (badge.scrollingEnabled) {
-        var inner = document.createElement("span");
-        inner.className = "badge-blitz-bar__scroll";
-        var seg = badge.label + "\u00a0\u00a0\u00b7\u00a0\u00a0";
-        inner.textContent = seg.repeat(20);
-        inner.style.setProperty("--bb-scroll-duration", (badge.scrollSpeed || 20) + "s");
-        el.appendChild(inner);
-      } else if (badge.showCountdown && badge.endsAt) {
-        el.style.textAlign = "center";
-        startCountdown(el, badge.endsAt);
-      } else {
-        el.textContent = badge.label;
-        el.style.textAlign = "center";
-      }
-
-      return el;
-    }
-
-    // ── LINED starburst — outer shell + inner badge ───────────────────────────
-    if (badge.shape === "CIRCLE" && badge.edgeStyle === "LINED") {
-      var ls   = badge.size || 12;
-      var ld   = Math.round(ls * 3.8 + 8);
-      var lCol = badge.borderColor || "#ffffff";
-      var lBg  = (badge.gradientEnabled && badge.gradientColorEnd)
-        ? "linear-gradient(" + (badge.gradientDirection || "to right") + "," + badge.color + "," + badge.gradientColorEnd + ")"
-        : badge.color;
-
-      el.style.position  = "absolute";
-      el.style.width     = ld + "px";
-      el.style.height    = ld + "px";
-      el.style.background = lCol;
-      el.style.clipPath  = STARBURST;
-      el.style.display   = "flex";
-      el.style.alignItems    = "center";
-      el.style.justifyContent = "center";
-      if (badge.shadowStyle && badge.shadowStyle !== "none") {
-        el.style.boxShadow = shadowCSS(badge.shadowStyle, badge.color);
-      }
-      if (badge.positionX != null && badge.positionY != null) {
-        el.style.left      = badge.positionX + "%";
-        el.style.top       = badge.positionY + "%";
-        el.style.transform = "translate(-50%, -50%)";
-      }
-      el.dataset.baseTransform = el.style.transform || "";
-
-      var inner = document.createElement("span");
-      inner.style.cssText = "width:84%;height:84%;clip-path:" + STARBURST + ";display:flex;align-items:center;justify-content:center;font-weight:700;font-size:" + ls + "px;color:" + badge.textColor;
-      inner.style.background = lBg;
-      if (FONT_FAMILIES[badge.fontFamily]) inner.style.fontFamily = FONT_FAMILIES[badge.fontFamily];
-      if (badge.textTransform && badge.textTransform !== "none") inner.style.textTransform = badge.textTransform;
-      inner.textContent = badge.label;
-      applyAnimEffect(inner, badge, false);
-      el.appendChild(inner);
-
-      return el;
-    }
-
-    // ── PILL / CIRCLE / default ──────────────────────────────────────────────
-    if (badge.showCountdown && badge.endsAt) {
-      startCountdown(el, badge.endsAt);
-    } else if (badge.iconDataUrl) {
-      var img = document.createElement("img");
-      img.src = badge.iconDataUrl;
-      img.style.cssText = "width:1.4em;height:1.4em;object-fit:contain;display:block;pointer-events:none";
-      el.appendChild(img);
-    } else {
-      el.textContent = badge.label;
-    }
-
-    applyBadgeStyles(el, badge);
-    el.dataset.baseTransform = el.style.transform || "";
-    applyAnimEffect(el, badge, false);
-
-    return el;
-  }
-
+  // ── Inject badges into all product cards ──────────────────────────────────
   function injectBadges(badges) {
-    if (!badges.length) return;
+    if (!badges || !badges.length) return;
 
-    var cards = document.querySelectorAll(CARD_SELECTORS);
+    var cards = getCards();
     if (!cards.length) return;
 
     cards.forEach(function (card) {
-      if (card.querySelector(".badge-blitz-badge")) return;
+      // Skip cards that already got a badge overlay from us
+      if (card.querySelector(".bb-overlay")) return;
 
       var productId    = getProductId(card);
       var imgContainer = getImageContainer(card);
 
-      if (getComputedStyle(imgContainer).position === "static") {
-        imgContainer.style.position = "relative";
-      }
+      // Ensure the image container is positioned so our overlay can anchor to it
+      var pos = getComputedStyle(imgContainer).position;
+      if (pos === "static") imgContainer.style.position = "relative";
+
+      // Create a transparent overlay div over the image area.
+      // This is NOT clipped by overflow:hidden on the image container because
+      // we rely on position:absolute + inset:0, which stays within bounds.
+      // We set overflow:visible on the overlay itself so badges don't get cut.
+      var overlay = document.createElement("div");
+      overlay.className = "bb-overlay";
+      imgContainer.appendChild(overlay);
 
       var positionUsed = {};
 
       badges.forEach(function (badge) {
+        // Position-deduplication key
         var posKey;
         if (badge.shape === "CORNER_POP") {
           posKey = "CP:" + (badge.position || "TOP_LEFT");
         } else if (badge.shape === "BAR") {
           posKey = "BAR:" + Math.round(badge.positionY || 0);
-        } else if (badge.positionX != null && badge.positionY != null) {
-          posKey = badge.positionX.toFixed(0) + ":" + badge.positionY.toFixed(0);
         } else {
-          posKey = badge.position;
+          posKey = (badge.positionX != null ? badge.positionX.toFixed(0) : "L") + ":" + (badge.positionY != null ? badge.positionY.toFixed(0) : "T");
         }
-
         if (positionUsed[posKey]) return;
-        if (!shouldShowBadge(badge, card, productId)) return;
+        if (!shouldShowBadge(badge, productId)) return;
         positionUsed[posKey] = true;
 
         var el = createBadgeElement(badge, card);
 
-        // ── Hover-only / slide-in visibility ──────────────────────────────
+        // Hover visibility (fade / slide-in)
         if (badge.shape !== "CORNER_POP") {
           if (badge.slideIn) {
-            var slideOffsets = { LEFT: "translateX(-300%)", RIGHT: "translateX(300%)", TOP: "translateY(-300%)", BOTTOM: "translateY(300%)" };
-            var slideOffset  = slideOffsets[badge.slideFrom] || slideOffsets.LEFT;
-            var slideDur     = (badge.hoverDuration || 300) + "ms";
-            var baseT        = el.dataset.baseTransform || "";
+            var slideOff = { LEFT: "translateX(-300%)", RIGHT: "translateX(300%)", TOP: "translateY(-300%)", BOTTOM: "translateY(300%)" }[badge.slideFrom] || "translateX(-300%)";
+            var baseT = el.dataset.baseTransform || "";
+            var dur   = (badge.hoverDuration || 300) + "ms";
             el.style.opacity   = "0";
-            el.style.transform = (baseT + " " + slideOffset).trim();
-            el.style.transition = "transform " + slideDur + " cubic-bezier(0.4,0,0.2,1), opacity " + slideDur + " ease";
+            el.style.transform = (baseT + " " + slideOff).trim();
+            el.style.transition = "transform " + dur + " cubic-bezier(0.4,0,0.2,1),opacity " + dur + " ease";
             card.addEventListener("mouseenter", function () { el.style.opacity = "1"; el.style.transform = baseT; });
-            card.addEventListener("mouseleave", function () { el.style.opacity = "0"; el.style.transform = (baseT + " " + slideOffset).trim(); });
+            card.addEventListener("mouseleave", function () { el.style.opacity = "0"; el.style.transform = (baseT + " " + slideOff).trim(); });
           } else if (badge.hoverOnly) {
             el.style.opacity    = "0";
             el.style.transition = "opacity " + (badge.hoverDuration || 300) + "ms ease";
@@ -516,29 +502,37 @@
           }
         }
 
-        // ── 3D tilt ────────────────────────────────────────────────────────
+        // 3D tilt
         if (badge.animEffect === "3d" && badge.shape !== "BAR") {
           attach3DTilt(card, el);
         }
 
-        // ── Confetti on hover (non-CP shapes) ──────────────────────────────
-        if (badge.animEffect === "confetti" && badge.shape !== "CORNER_POP") {
-          el.addEventListener("mouseenter", function () { triggerConfetti(el); });
-        }
-
-        imgContainer.appendChild(el);
+        overlay.appendChild(el);
       });
+
+      // If no badges ended up in the overlay, remove it (keep DOM clean)
+      if (!overlay.children.length) overlay.remove();
     });
   }
 
+  // ── Init ──────────────────────────────────────────────────────────────────
   function init() {
     fetchBadges(function (badges) {
       if (!badges.length) return;
 
+      // First pass immediately
       injectBadges(badges);
 
+      // Second pass after a short delay — catches themes that render cards async
+      setTimeout(function () { injectBadges(badges); }, 800);
+
+      // MutationObserver for SPA navigation / infinite scroll / filters
       if (window.MutationObserver) {
-        var observer = new MutationObserver(function () { injectBadges(badges); });
+        var debounceTimer;
+        var observer = new MutationObserver(function () {
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(function () { injectBadges(badges); }, 120);
+        });
         observer.observe(document.body, { childList: true, subtree: true });
       }
     });
