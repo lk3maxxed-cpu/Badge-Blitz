@@ -2004,7 +2004,7 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit, isFirst, isLast }) 
   const [targetingOpen, setTargetingOpen] = useState(false);
   const [cardTargetType, setCardTargetType] = useState(badge.targetType || "ALL");
   const [selectedProductIds, setSelectedProductIds] = useState(() =>
-    new Set((badge.targetIds || "").split(",").map((s) => s.trim()).filter(Boolean))
+    new Set((badge.targetIds || "").split(",").map((s) => s.trim()).filter((s) => s && !/^\d+$/.test(s)))
   );
   const [selectedCollectionIds, setSelectedCollectionIds] = useState(() =>
     new Set((badge.collectionIds || "").split(",").map((s) => s.trim()).filter(Boolean))
@@ -2047,7 +2047,10 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit, isFirst, isLast }) 
   }, [pickerSearch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSaveTargeting = () => {
-    const targetIds = cardTargetType === "SPECIFIC" ? [...selectedProductIds].join(",") : "";
+    // Strip legacy numeric IDs — only keep handles (non-numeric strings)
+    const targetIds = cardTargetType === "SPECIFIC"
+      ? [...selectedProductIds].filter((id) => !/^\d+$/.test(id)).join(",")
+      : "";
     const collectionIds = cardTargetType === "COLLECTION" ? [...selectedCollectionIds].join(",") : "";
     fetcher.submit(
       { intent: "update-targeting", badgeId: badge.id, targetType: cardTargetType, targetIds, collectionIds },
