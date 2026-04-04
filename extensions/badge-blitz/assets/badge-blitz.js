@@ -569,11 +569,18 @@
       setTimeout(function () { injectBadges(badges); }, 800);
 
       // MutationObserver for SPA navigation / infinite scroll / filters
+      // Disconnect while injecting to avoid re-triggering on our own DOM writes
       if (window.MutationObserver) {
         var debounceTimer;
+        var injecting = false;
         var observer = new MutationObserver(function () {
+          if (injecting) return;
           clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(function () { injectBadges(badges); }, 120);
+          debounceTimer = setTimeout(function () {
+            injecting = true;
+            injectBadges(badges);
+            injecting = false;
+          }, 300);
         });
         observer.observe(document.body, { childList: true, subtree: true });
       }
