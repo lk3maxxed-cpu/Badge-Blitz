@@ -170,8 +170,23 @@
     return seen;
   }
 
+  // Classes that indicate a card is a collection card, not a product card
+  var COLLECTION_CARD_CLASSES = [
+    "collection-card-wrapper",
+    "collection-card",
+    "collection-item",
+    "collection-grid-item",
+  ];
+
+  function isCollectionCard(el) {
+    return COLLECTION_CARD_CLASSES.some(function (cls) {
+      return el.classList.contains(cls);
+    });
+  }
+
   function getCards() {
-    var bySelector = Array.from(document.querySelectorAll(KNOWN_SELECTORS));
+    var bySelector = Array.from(document.querySelectorAll(KNOWN_SELECTORS))
+      .filter(function (el) { return !isCollectionCard(el); });
     if (bySelector.length) return bySelector;
     var byLink = findCardsFromLinks();
     return byLink;
