@@ -19,6 +19,7 @@ export async function loader({ request }) {
         products(first: 50, query: $q, sortKey: TITLE) {
           nodes {
             id
+            handle
             title
             featuredImage { url }
           }
@@ -45,9 +46,10 @@ export async function loader({ request }) {
 
   return data({
     products: (prodJson.data?.products?.nodes ?? []).map((p) => ({
-      id: p.id.replace("gid://shopify/Product/", ""),
+      id: p.handle,
       gid: p.id,
       title: p.title,
+      handle: p.handle,
       image: p.featuredImage?.url ?? null,
     })),
     collections: (collJson.data?.collections?.nodes ?? []).map((c) => ({

@@ -214,39 +214,43 @@
     );
   }
 
-  // ── Get product numeric ID from a card element ─────────────────────────────
+  // ── Get product identifier from a card element ────────────────────────────
+  // Returns numeric product ID if available, otherwise the product handle.
+  // Handles are readable from <a href="/products/HANDLE"> which Dawn always has.
   function getProductId(card) {
-    // Attribute on the card itself
+    // 1. Numeric data-product-id attribute (some themes / apps add this)
     var id = card.dataset.productId || card.dataset.id || card.dataset.product;
-    if (id) return id.replace("gid://shopify/Product/", "");
-    // Attribute on a child element
-    var child = card.querySelector("[data-product-id]") || card.querySelector("[data-product]");
+    if (id && /^\d+$/.test(id)) return id;
+    // 2. Child element with data-product-id
+    var child = card.querySelector("[data-product-id]");
     if (child) {
-      var cid = child.dataset.productId || child.dataset.product || "";
-      return cid.replace("gid://shopify/Product/", "");
+      var cid = (child.dataset.productId || "").replace("gid://shopify/Product/", "");
+      if (cid) return cid;
     }
-    // Extract from an add-to-cart form
-    var form = card.querySelector("form[action*='/cart/add']");
-    if (form) {
-      var input = form.querySelector("[name='id']");
-      if (input) return input.value;
+    // 3. Handle from any product link inside the card — works in Dawn and most themes
+    var link = card.querySelector("a[href*='/products/']");
+    if (link) {
+      var href = link.getAttribute("href") || "";
+      var m = href.match(/\/products\/([^/?#]+)/);
+      if (m) return m[1]; // e.g. "my-product-handle"
     }
-    // Extract from a product link URL — /products/handle doesn't give ID, skip
     return null;
   }
 
   // ── Badge visibility: should this badge appear on this card? ──────────────
+  // productId may be a numeric ID string or a product handle string.
+  // targetIds may contain numeric IDs or handles — we accept either.
   function shouldShowBadge(badge, productId) {
     if (badge.targetType === "SPECIFIC") {
-      if (!productId) return false; // no ID = can't verify, skip
+      if (!productId) return false;
       var ids = (badge.targetIds || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean);
       if (!ids.length) return false;
-      var matched = ids.some(function (id) {
-        return id === productId || id === productId.toString();
+      var pid = String(productId).toLowerCase();
+      return ids.some(function (id) {
+        return String(id).toLowerCase() === pid;
       });
-      return matched;
     }
-    return true; // ALL or any other type
+    return true; // ALL
   }
 
   // ── Create a badge DOM element ─────────────────────────────────────────────
