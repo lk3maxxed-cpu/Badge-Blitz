@@ -518,7 +518,20 @@
   // ── Init ──────────────────────────────────────────────────────────────────
   function init() {
     fetchBadges(function (badges) {
-      if (!badges.length) return;
+      console.log("[BadgeBlitz] API returned " + badges.length + " badge(s):", badges);
+
+      if (!badges.length) {
+        console.warn("[BadgeBlitz] No active badges returned. Check shop param and DB.");
+        return;
+      }
+
+      var cards = getCards();
+      console.log("[BadgeBlitz] Found " + cards.length + " product card(s) on page.");
+      if (cards.length) {
+        console.log("[BadgeBlitz] First card element:", cards[0]);
+        console.log("[BadgeBlitz] First card productId:", getProductId(cards[0]));
+        console.log("[BadgeBlitz] First card imgContainer:", getImageContainer(cards[0]));
+      }
 
       // First pass immediately
       injectBadges(badges);

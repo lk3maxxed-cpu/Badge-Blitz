@@ -254,6 +254,20 @@ export async function action({ request }) {
     return data({ success: true });
   }
 
+  if (intent === "update-schedule") {
+    const startsAtRaw = formData.get("startsAt");
+    const endsAtRaw   = formData.get("endsAt");
+    await db.badge.update({
+      where: { id: badgeId },
+      data: {
+        startsAt:      startsAtRaw ? new Date(startsAtRaw) : null,
+        endsAt:        endsAtRaw   ? new Date(endsAtRaw)   : null,
+        showCountdown: formData.get("showCountdown") === "true",
+      },
+    });
+    return data({ success: true });
+  }
+
   if (intent === "reorder") {
     const direction = formData.get("direction"); // "up" | "down"
     const { shop } = session;
@@ -1998,6 +2012,24 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit, isFirst, isLast }) 
   const [pickerSearch, setPickerSearch] = useState("");
   const pickerFetcher = useFetcher();
 
+  // Schedule state
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [schedStartsAt, setSchedStartsAt] = useState(
+    badge.startsAt ? new Date(badge.startsAt).toISOString().slice(0, 16) : ""
+  );
+  const [schedEndsAt, setSchedEndsAt] = useState(
+    badge.endsAt ? new Date(badge.endsAt).toISOString().slice(0, 16) : ""
+  );
+  const [schedCountdown, setSchedCountdown] = useState(!!badge.showCountdown);
+
+  const handleSaveSchedule = () => {
+    fetcher.submit(
+      { intent: "update-schedule", badgeId: badge.id, startsAt: schedStartsAt, endsAt: schedEndsAt, showCountdown: String(schedCountdown) },
+      { method: "post" }
+    );
+    setScheduleOpen(false);
+  };
+
   // Load picker data when panel first opens
   useEffect(() => {
     if (targetingOpen && !pickerFetcher.data && pickerFetcher.state === "idle") {
@@ -2326,6 +2358,82 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit, isFirst, isLast }) 
                     Cancel
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Schedule */}
+        <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 8, marginTop: 4 }}>
+          <button
+            onClick={() => setScheduleOpen((v) => !v)}
+            style={{ background: "transparent", border: "none", padding: "2px 0", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, color: "#555", fontSize: 11, fontWeight: 600, width: "100%" }}
+          >
+            <span>Schedule</span>
+            <span style={{ fontSize: 9, display: "inline-block", transition: "transform 0.15s", transform: scheduleOpen ? "rotate(180deg)" : "none" }}>▾</span>
+            <span style={{ marginLeft: 4, fontWeight: 400, color: "#aaa" }}>
+              {schedStartsAt || schedEndsAt
+                ? (schedStartsAt ? new Date(schedStartsAt).toLocaleDateString() : "Now") + " → " + (schedEndsAt ? new Date(schedEndsAt).toLocaleDateString() : "∞")
+                : "No schedule"}
+            </span>
+          </button>
+
+          {scheduleOpen && (
+            <div style={{ marginTop: 8, border: "1px solid #e1e3e5", borderRadius: 8, padding: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: "#888", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 4 }}>Start</div>
+                  <input
+                    type="datetime-local"
+                    value={schedStartsAt}
+                    onChange={(e) => setSchedStartsAt(e.target.value)}
+                    style={{ width: "100%", border: "1px solid #e1e3e5", borderRadius: 4, padding: "5px 6px", fontSize: 11, boxSizing: "border-box", color: "#333" }}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: "#888", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 4 }}>End</div>
+                  <input
+                    type="datetime-local"
+                    value={schedEndsAt}
+                    onChange={(e) => setSchedEndsAt(e.target.value)}
+                    style={{ width: "100%", border: "1px solid #e1e3e5", borderRadius: 4, padding: "5px 6px", fontSize: 11, boxSizing: "border-box", color: "#333" }}
+                  />
+                </div>
+              </div>
+
+              {schedEndsAt && (
+                <label style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={schedCountdown}
+                    onChange={(e) => setSchedCountdown(e.target.checked)}
+                    style={{ accentColor: "#111" }}
+                  />
+                  <span style={{ fontSize: 11, color: "#444" }}>Show live countdown on badge</span>
+                </label>
+              )}
+
+              <div style={{ display: "flex", gap: 6 }}>
+                <button
+                  onClick={handleSaveSchedule}
+                  style={{ background: "#111", color: "#fff", border: "none", borderRadius: 4, padding: "6px 14px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Save
+                </button>
+                {(schedStartsAt || schedEndsAt) && (
+                  <button
+                    onClick={() => { setSchedStartsAt(""); setSchedEndsAt(""); setSchedCountdown(false); }}
+                    style={{ background: "transparent", border: "1px solid #ddd", borderRadius: 4, padding: "6px 10px", fontSize: 11, cursor: "pointer", color: "#999" }}
+                  >
+                    Clear
+                  </button>
+                )}
+                <button
+                  onClick={() => setScheduleOpen(false)}
+                  style={{ background: "transparent", border: "1px solid #ddd", borderRadius: 4, padding: "6px 10px", fontSize: 11, cursor: "pointer", color: "#666" }}
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           )}
