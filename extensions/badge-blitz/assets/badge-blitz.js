@@ -459,14 +459,24 @@
     if (!badges || !badges.length) return;
 
     var cards = getCards();
-    if (!cards.length) return;
+    console.log("[BadgeBlitz] injectBadges: " + cards.length + " product card(s) after collection filter.");
+    if (!cards.length) {
+      console.warn("[BadgeBlitz] No product cards found. Are you on a product listing page?");
+      return;
+    }
 
-    cards.forEach(function (card) {
+    cards.forEach(function (card, idx) {
       // Skip cards that already got a badge overlay from us
       if (card.querySelector(".bb-overlay")) return;
 
       var productId    = getProductId(card);
       var imgContainer = getImageContainer(card);
+      if (idx === 0) {
+        console.log("[BadgeBlitz] Card[0] productId:", productId, "| imgContainer:", imgContainer);
+        badges.forEach(function (b) {
+          console.log("[BadgeBlitz] Badge \"" + b.label + "\" targetType=" + b.targetType + " shouldShow=" + shouldShowBadge(b, productId));
+        });
+      }
 
       // Ensure the image container is positioned so our overlay can anchor to it
       var pos = getComputedStyle(imgContainer).position;
