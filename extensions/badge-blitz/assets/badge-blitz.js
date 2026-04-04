@@ -20,7 +20,7 @@
       "@keyframes bb-glow{0%,100%{opacity:1;filter:brightness(1)}50%{opacity:0.85;filter:brightness(1.4)}}",
       "@keyframes bb-shimmer{0%{background-position:200% center}100%{background-position:-200% center}}",
       // Overlay wrapper that sits over the image area without being clipped
-      ".bb-overlay{position:absolute;inset:0;pointer-events:none;z-index:99;overflow:visible!important}",
+      ".bb-overlay{position:absolute;inset:0;pointer-events:none;z-index:99;overflow:hidden}",
     ].join("\n");
     document.head.appendChild(styleEl);
   }
@@ -333,6 +333,7 @@
         "position:absolute",
         "left:0;right:0;width:100%",
         "overflow:hidden",
+        "clip-path:inset(0)",
         "padding:7px 0",
         "font-weight:700",
         "letter-spacing:0.5px",
