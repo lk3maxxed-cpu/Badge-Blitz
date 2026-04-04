@@ -478,7 +478,7 @@
       if (idx === 0) {
         console.log("[BadgeBlitz] Card[0] productId:", productId, "| imgContainer:", imgContainer);
         badges.forEach(function (b) {
-          console.log("[BadgeBlitz] Badge \"" + b.label + "\" targetType=" + b.targetType + " shouldShow=" + shouldShowBadge(b, productId));
+          console.log("[BadgeBlitz] Badge \"" + b.label + "\" targetType=" + b.targetType + " targetIds=[" + b.targetIds + "] productId=" + productId + " shouldShow=" + shouldShowBadge(b, productId));
         });
       }
 
