@@ -114,9 +114,11 @@ export async function loader({ request }) {
       borderColor: b.borderColor,
       shadowStyle: b.shadowStyle,
       animEffect: b.animEffect,
-      showCountdown: b.showCountdown,
+      showCountdown: !!b.showCountdown,
       endsAt: b.endsAt ? b.endsAt.toISOString() : null,
-      targetType: (isLowStock && b.syncedTargetIds) || isCollection ? "SPECIFIC" : b.targetType,
+      // COLLECTION and LOW_STOCK badges are converted to SPECIFIC with their
+      // resolved product list so the storefront JS only needs one matching path.
+      targetType: (isLowStock && b.syncedTargetIds) || (isCollection && b.syncedTargetIds) ? "SPECIFIC" : b.targetType,
       targetIds: isLowStock
         ? (b.syncedTargetIds ?? b.targetIds)
         : isCollection

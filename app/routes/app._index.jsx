@@ -122,7 +122,7 @@ export async function action({ request }) {
         color: formData.get("color") || "#FF4136",
         textColor: formData.get("textColor") || "#FFFFFF",
         shape: formData.get("shape") || "PILL",
-        position: formData.get("position") || "TOP_LEFT",
+        position: formData.get("position") || null,
         size: parseInt(formData.get("size") || "12", 10),
         edgeStyle: formData.get("edgeStyle") || "SMOOTH",
         positionX: px ? parseFloat(px) : null,
@@ -173,7 +173,7 @@ export async function action({ request }) {
         color: formData.get("color") || "#FF4136",
         textColor: formData.get("textColor") || "#FFFFFF",
         shape: formData.get("shape") || "PILL",
-        position: formData.get("position") || "TOP_LEFT",
+        position: formData.get("position") || null,
         size: parseInt(formData.get("size") || "12", 10),
         edgeStyle: formData.get("edgeStyle") || "SMOOTH",
         positionX: px ? parseFloat(px) : null,
@@ -187,6 +187,7 @@ export async function action({ request }) {
         slideFrom: formData.get("slideFrom") || "LEFT",
         scrollingEnabled: formData.get("scrollingEnabled") === "true",
         scrollSpeed: parseInt(formData.get("scrollSpeed") || "20", 10),
+        showCountdown: formData.get("showCountdown") === "true",
         iconDataUrl: formData.get("iconDataUrl") || null,
         fontFamily: formData.get("fontFamily") || "system",
         textTransform: formData.get("textTransform") || "none",
@@ -1519,6 +1520,7 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
                 if (shape === "CORNER_POP") {
                   fd.append("position", cpCorner);
                 } else {
+                  fd.append("position", "");
                   fd.append("px", pos.x.toFixed(1));
                   fd.append("py", pos.y.toFixed(1));
                 }

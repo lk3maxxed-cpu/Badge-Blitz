@@ -464,24 +464,14 @@
     if (!badges || !badges.length) return;
 
     var cards = getCards();
-    console.log("[BadgeBlitz] injectBadges: " + cards.length + " product card(s) after collection filter.");
-    if (!cards.length) {
-      console.warn("[BadgeBlitz] No product cards found. Are you on a product listing page?");
-      return;
-    }
+    if (!cards.length) return;
 
-    cards.forEach(function (card, idx) {
+    cards.forEach(function (card) {
       // Skip cards that already got a badge overlay from us
       if (card.querySelector(".bb-overlay")) return;
 
       var productId    = getProductId(card);
       var imgContainer = getImageContainer(card);
-      if (idx === 0) {
-        console.log("[BadgeBlitz] Card[0] productId:", productId, "| imgContainer:", imgContainer);
-        badges.forEach(function (b) {
-          console.log("[BadgeBlitz] Badge \"" + b.label + "\" targetType=" + b.targetType + " targetIds=[" + b.targetIds + "] productId=" + productId + " shouldShow=" + shouldShowBadge(b, productId));
-        });
-      }
 
       // Ensure the image container is positioned so our overlay can anchor to it
       var pos = getComputedStyle(imgContainer).position;
@@ -548,20 +538,7 @@
   // ── Init ──────────────────────────────────────────────────────────────────
   function init() {
     fetchBadges(function (badges) {
-      console.log("[BadgeBlitz] API returned " + badges.length + " badge(s):", badges);
-
-      if (!badges.length) {
-        console.warn("[BadgeBlitz] No active badges returned. Check shop param and DB.");
-        return;
-      }
-
-      var cards = getCards();
-      console.log("[BadgeBlitz] Found " + cards.length + " product card(s) on page.");
-      if (cards.length) {
-        console.log("[BadgeBlitz] First card element:", cards[0]);
-        console.log("[BadgeBlitz] First card productId:", getProductId(cards[0]));
-        console.log("[BadgeBlitz] First card imgContainer:", getImageContainer(cards[0]));
-      }
+      if (!badges.length) return;
 
       // First pass immediately
       injectBadges(badges);
@@ -570,17 +547,15 @@
       setTimeout(function () { injectBadges(badges); }, 800);
 
       // MutationObserver for SPA navigation / infinite scroll / filters
-      // Disconnect while injecting to avoid re-triggering on our own DOM writes
+      // Disconnect during injection to prevent our own DOM writes from re-triggering
       if (window.MutationObserver) {
         var debounceTimer;
-        var injecting = false;
         var observer = new MutationObserver(function () {
-          if (injecting) return;
           clearTimeout(debounceTimer);
           debounceTimer = setTimeout(function () {
-            injecting = true;
+            observer.disconnect();
             injectBadges(badges);
-            injecting = false;
+            observer.observe(document.body, { childList: true, subtree: true });
           }, 300);
         });
         observer.observe(document.body, { childList: true, subtree: true });
