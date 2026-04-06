@@ -8,7 +8,7 @@
 
 <script>
   window.BadgeBlitzShop = {{ shop.permanent_domain | json }};
-  window.BadgeBlitzApiUrl = {{ block.settings.api_url | json }};
+  window.BadgeBlitzApiUrl = {{ block.settings.api_url | default: "" | json }};
 </script>
 
 <script src="{{ 'badge-blitz.js' | asset_url }}" defer></script>
@@ -21,8 +21,8 @@
     {
       "type": "text",
       "id": "api_url",
-      "label": "API URL",
-      "default": "https://badge-blitz-production.up.railway.app"
+      "label": "API URL (leave blank to use Shopify proxy)",
+      "default": ""
     }
   ]
 }

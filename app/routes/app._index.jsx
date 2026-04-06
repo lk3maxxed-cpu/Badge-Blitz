@@ -656,7 +656,7 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
   const [shape, setShape] = useState("PILL");
   const [edgeStyle, setEdgeStyle] = useState("SMOOTH");
   const [size, setSize] = useState(12);
-  const [pos, setPos] = useState({ x: 50, y: 50 }); // will be corrected by mount snap
+  const [pos, setPos] = useState({ x: 12, y: 12 });
   const [dragging, setDragging] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [gradientEnabled, setGradientEnabled] = useState(false);
@@ -769,6 +769,10 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
       setSnappedCorner(null);
     } else if (shape === "CORNER_POP") {
       setSnappedCorner("TL"); // default top-left
+    } else {
+      // PILL / SQUARE / CIRCLE / RIBBON — snap to top-left area on shape change
+      setPos({ x: 12, y: 12 });
+      setSnappedCorner(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shape]);

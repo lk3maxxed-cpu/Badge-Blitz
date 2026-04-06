@@ -3,9 +3,10 @@
   "use strict";
 
   var shop = window.BadgeBlitzShop;
-  var apiUrl = window.BadgeBlitzApiUrl;
+  // Use Shopify app proxy (same origin, no CORS) when no direct URL is configured
+  var apiUrl = window.BadgeBlitzApiUrl || "/apps/badge-blitz";
 
-  if (!shop || !apiUrl) return;
+  if (!shop) return;
 
   // ── Animation keyframes (injected once) ───────────────────────────────────
   var STYLE_ID = "badge-blitz-styles";
@@ -192,24 +193,14 @@
     return byLink;
   }
 
-  // ── Image container inside a card ─────────────────────────────────────────
-  var IMG_CONTAINER_SELECTORS = [
-    ".card__media",
-    ".card__image",
-    ".product-card__image",
-    ".product-card__image-wrapper",
-    ".product__media",
-    ".grid-product__image-wrapper",
-    ".product-image-container",
-    ".product-image",
-    ".product-item__image-wrapper",
-    "figure",
-  ].join(",");
-
-  function getImageContainer(card) {
+  // ── Overlay injection parent ───────────────────────────────────────────────
+  // .card__media has z-index:0 which creates a stacking context — our z-index:99
+  // inside it cannot beat .card__content (sibling, z-index:auto, later in DOM).
+  // Injecting into .card__inner (parent of both) puts our overlay in the same
+  // stacking context as .card__content so z-index:10 wins cleanly.
+  function getOverlayParent(card) {
     return (
-      card.querySelector(IMG_CONTAINER_SELECTORS) ||
-      (card.querySelector("img") ? card.querySelector("img").parentElement : null) ||
+      card.querySelector(".card__inner") ||
       card
     );
   }
@@ -470,20 +461,19 @@
       // Skip cards that already got a badge overlay from us
       if (card.querySelector(".bb-overlay")) return;
 
-      var productId    = getProductId(card);
-      var imgContainer = getImageContainer(card);
+      var productId      = getProductId(card);
+      var overlayParent  = getOverlayParent(card);
 
-      // Ensure the image container is positioned so our overlay can anchor to it
-      var pos = getComputedStyle(imgContainer).position;
-      if (pos === "static") imgContainer.style.position = "relative";
+      // Ensure the overlay parent is positioned so our overlay can anchor to it
+      var parentPos = getComputedStyle(overlayParent).position;
+      if (parentPos === "static") overlayParent.style.position = "relative";
 
-      // Create a transparent overlay div over the image area.
-      // This is NOT clipped by overflow:hidden on the image container because
-      // we rely on position:absolute + inset:0, which stays within bounds.
-      // We set overflow:visible on the overlay itself so badges don't get cut.
+      // Inject overlay as sibling of .card__media and .card__content inside
+      // .card__inner so it shares their stacking context. z-index:10 then beats
+      // both .card__media (z-index:0) and .card__content (z-index:auto, DOM order).
       var overlay = document.createElement("div");
       overlay.className = "bb-overlay";
-      imgContainer.appendChild(overlay);
+      overlayParent.appendChild(overlay);
 
       var positionUsed = {};
 
