@@ -56,6 +56,7 @@
 
   function startCountdown(el, endsAt) {
     var end = new Date(endsAt).getTime();
+    if (isNaN(end)) { el.textContent = "—"; return; } // guard: invalid date
     function tick() {
       var remaining = end - Date.now();
       el.textContent = remaining > 0 ? formatCountdown(remaining) : "Ended";
@@ -400,8 +401,10 @@
     var circleSize = Math.round((badge.size || 12) * 0.6);
     el.style.cssText = [
       "position:absolute",
-      "left:clamp(26px," + px + "%,calc(100% - 26px))",
-      "top:clamp(14px," + py + "%,calc(100% - 14px))",
+      // Clamp values are size-aware so large badges at edge positions don't clip.
+      // halfW ≈ 3× font size covers most pill labels; halfH ≈ 1.2× font size.
+      "left:clamp(" + Math.max(26, Math.round((badge.size || 12) * 3)) + "px," + px + "%,calc(100% - " + Math.max(26, Math.round((badge.size || 12) * 3)) + "px))",
+      "top:clamp(" + Math.max(14, Math.round((badge.size || 12) * 1.2)) + "px," + py + "%,calc(100% - " + Math.max(14, Math.round((badge.size || 12) * 1.2)) + "px))",
       "transform:translate(-50%,-50%)",
       "font-size:" + (badge.size || 12) + "px",
       "font-weight:700",
@@ -573,22 +576,19 @@
       // Second pass after a short delay — catches themes that render cards async
       setTimeout(function () { injectBadges(badges); }, 800);
 
-      // MutationObserver for SPA navigation / infinite scroll / filters
-      // Disconnect during injection to prevent our own DOM writes from re-triggering
-      // Fix 5: Disconnect observer 5 s after init — indefinite observation is wasteful
+      // MutationObserver for SPA navigation / infinite scroll / lazy-loaded sections.
+      // injectBadges/injectPDP are idempotent (skip cards that already have .bb-overlay)
+      // so re-running on our own DOM writes is a safe no-op — no disconnect needed.
       if (window.MutationObserver) {
         var debounceTimer;
         var observer = new MutationObserver(function () {
           clearTimeout(debounceTimer);
           debounceTimer = setTimeout(function () {
-            observer.disconnect();
             injectBadges(badges);
             injectPDP(badges);
-            observer.observe(document.body, { childList: true, subtree: true });
           }, 300);
         });
         observer.observe(document.body, { childList: true, subtree: true });
-        setTimeout(function () { observer.disconnect(); }, 5000);
       }
     });
   }

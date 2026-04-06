@@ -7,7 +7,6 @@ import db from "../db.server";
 export const action = async ({ request }) => {
   const { shop, payload, topic } = await authenticate.webhook(request);
 
-  console.log(`Received ${topic} webhook for ${shop}`);
 
   const status = payload?.app_subscription?.status;
 

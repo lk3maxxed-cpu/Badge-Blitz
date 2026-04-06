@@ -1,7 +1,7 @@
 // app/routes/app._index.jsx
 // Badge Blitz — Main Dashboard
 
-import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useLayoutEffect, Component } from "react";
 import { useFetcher, useLoaderData } from "react-router";
 import {
   Page,
@@ -49,7 +49,7 @@ export async function loader({ request }) {
   });
 
   // Fetch total product count + theme extension status in parallel (both non-critical)
-  const EXT_UUID = "86fc0778-a9dd-715e-0846-a6675c2c69544ed3fb6a";
+  const EXT_UUID = process.env.SHOPIFY_EXTENSION_UUID || "86fc0778-a9dd-715e-0846-a6675c2c69544ed3fb6a";
   let totalProductCount = null;
   let themeExtensionEnabled = null;
   try {
@@ -98,8 +98,12 @@ export async function action({ request }) {
   const badgeId = formData.get("badgeId");
 
   if (intent === "delete") {
-    await db.badge.delete({ where: { id: badgeId } });
-    return data({ success: true });
+    try {
+      await db.badge.delete({ where: { id: badgeId } });
+      return data({ success: true });
+    } catch {
+      return data({ error: "Failed to delete badge. Please try again." }, { status: 500 });
+    }
   }
 
   if (intent === "create") {
@@ -107,6 +111,16 @@ export async function action({ request }) {
     let shopRecord = await db.shop.findUnique({ where: { shopDomain: shop } });
     if (!shopRecord) {
       shopRecord = await db.shop.create({ data: { shopDomain: shop, plan: "FREE" } });
+    }
+    // Enforce free plan badge limit server-side (UI guard alone is insufficient)
+    if (shopRecord.plan === "FREE") {
+      const existingCount = await db.badge.count({ where: { shopId: shopRecord.id } });
+      if (existingCount >= 3) {
+        return data(
+          { error: "Free plan limit reached. You can have up to 3 badges. Upgrade to Pro for unlimited." },
+          { status: 403 }
+        );
+      }
     }
     const label = formData.get("label");
     if (!label || !label.trim()) return data({ error: "Label is required." }, { status: 400 });
@@ -166,52 +180,76 @@ export async function action({ request }) {
     // Note: targeting fields (targetType, targetIds, collectionIds) are intentionally
     // excluded here — they are managed separately via the update-targeting intent
     // so that editing badge appearance never resets targeting.
-    await db.badge.update({
-      where: { id: badgeId },
-      data: {
-        label: label.trim(),
-        color: formData.get("color") || "#FF4136",
-        textColor: formData.get("textColor") || "#FFFFFF",
-        shape: formData.get("shape") || "PILL",
-        position: formData.get("position") || "TOP_LEFT",
-        size: parseInt(formData.get("size") || "12", 10),
-        edgeStyle: formData.get("edgeStyle") || "SMOOTH",
-        positionX: px ? parseFloat(px) : null,
-        positionY: py ? parseFloat(py) : null,
-        gradientEnabled: formData.get("gradientEnabled") === "true",
-        gradientColorEnd: formData.get("gradientColorEnd") || null,
-        gradientDirection: formData.get("gradientDirection") || "to right",
-        hoverOnly: formData.get("hoverOnly") === "true",
-        hoverDuration: parseInt(formData.get("hoverDuration") || "300", 10),
-        slideIn: formData.get("slideIn") === "true",
-        slideFrom: formData.get("slideFrom") || "LEFT",
-        scrollingEnabled: formData.get("scrollingEnabled") === "true",
-        scrollSpeed: parseInt(formData.get("scrollSpeed") || "20", 10),
-        showCountdown: formData.get("showCountdown") === "true",
-        iconDataUrl: formData.get("iconDataUrl") || null,
-        fontFamily: formData.get("fontFamily") || "system",
-        textTransform: formData.get("textTransform") || "none",
-        borderWidth: parseInt(formData.get("borderWidth") || "0", 10),
-        borderColor: formData.get("borderColor") || "#ffffff",
-        shadowStyle: formData.get("shadowStyle") || "none",
-        animEffect: formData.get("animEffect") || "none",
-      },
-    });
+    try {
+      await db.badge.update({
+        where: { id: badgeId },
+        data: {
+          label: label.trim(),
+          color: formData.get("color") || "#FF4136",
+          textColor: formData.get("textColor") || "#FFFFFF",
+          shape: formData.get("shape") || "PILL",
+          position: formData.get("position") || "TOP_LEFT",
+          size: parseInt(formData.get("size") || "12", 10),
+          edgeStyle: formData.get("edgeStyle") || "SMOOTH",
+          positionX: px ? parseFloat(px) : null,
+          positionY: py ? parseFloat(py) : null,
+          gradientEnabled: formData.get("gradientEnabled") === "true",
+          gradientColorEnd: formData.get("gradientColorEnd") || null,
+          gradientDirection: formData.get("gradientDirection") || "to right",
+          hoverOnly: formData.get("hoverOnly") === "true",
+          hoverDuration: parseInt(formData.get("hoverDuration") || "300", 10),
+          slideIn: formData.get("slideIn") === "true",
+          slideFrom: formData.get("slideFrom") || "LEFT",
+          scrollingEnabled: formData.get("scrollingEnabled") === "true",
+          scrollSpeed: parseInt(formData.get("scrollSpeed") || "20", 10),
+          showCountdown: formData.get("showCountdown") === "true",
+          iconDataUrl: formData.get("iconDataUrl") || null,
+          fontFamily: formData.get("fontFamily") || "system",
+          textTransform: formData.get("textTransform") || "none",
+          borderWidth: parseInt(formData.get("borderWidth") || "0", 10),
+          borderColor: formData.get("borderColor") || "#ffffff",
+          shadowStyle: formData.get("shadowStyle") || "none",
+          animEffect: formData.get("animEffect") || "none",
+        },
+      });
+    } catch {
+      return data({ error: "Failed to save badge. Please try again." }, { status: 500 });
+    }
     return data({ success: true });
   }
 
   if (intent === "duplicate") {
     const src = await db.badge.findUnique({ where: { id: badgeId } });
     if (!src) return data({ error: "Badge not found." }, { status: 404 });
-    const { id: _id, createdAt: _c, updatedAt: _u, syncedTargetIds: _s, ...rest } = src;
-    await db.badge.create({ data: { ...rest, label: rest.label + " (copy)", active: false, priority: 0 } });
+    // Enforce free plan limit on duplicate too
+    const { shop: dupShop } = session;
+    const dupShopRecord = await db.shop.findUnique({ where: { shopDomain: dupShop } });
+    if (dupShopRecord?.plan === "FREE") {
+      const dupCount = await db.badge.count({ where: { shopId: dupShopRecord.id } });
+      if (dupCount >= 3) {
+        return data(
+          { error: "Free plan limit reached. Upgrade to Pro to create unlimited badges." },
+          { status: 403 }
+        );
+      }
+    }
+    try {
+      const { id: _id, createdAt: _c, updatedAt: _u, syncedTargetIds: _s, ...rest } = src;
+      await db.badge.create({ data: { ...rest, label: rest.label + " (copy)", active: false, priority: 0 } });
+    } catch {
+      return data({ error: "Failed to duplicate badge. Please try again." }, { status: 500 });
+    }
     return data({ success: true });
   }
 
   if (intent === "bulk-toggle") {
     const ids = JSON.parse(formData.get("badgeIds") || "[]");
     const active = formData.get("active") === "true";
-    await db.badge.updateMany({ where: { id: { in: ids } }, data: { active } });
+    try {
+      await db.badge.updateMany({ where: { id: { in: ids } }, data: { active } });
+    } catch {
+      return data({ error: "Failed to update badges. Please try again." }, { status: 500 });
+    }
     return data({ success: true });
   }
 
@@ -244,28 +282,43 @@ export async function action({ request }) {
   }
 
   if (intent === "update-targeting") {
-    await db.badge.update({
-      where: { id: badgeId },
-      data: {
-        targetType: formData.get("targetType") || "ALL",
-        targetIds: formData.get("targetIds") || null,
-        collectionIds: formData.get("collectionIds") || null,
-      },
-    });
+    try {
+      await db.badge.update({
+        where: { id: badgeId },
+        data: {
+          targetType: formData.get("targetType") || "ALL",
+          targetIds: formData.get("targetIds") || null,
+          collectionIds: formData.get("collectionIds") || null,
+        },
+      });
+    } catch {
+      return data({ error: "Failed to save targeting. Please try again." }, { status: 500 });
+    }
     return data({ success: true });
   }
 
   if (intent === "update-schedule") {
     const startsAtRaw = formData.get("startsAt");
     const endsAtRaw   = formData.get("endsAt");
-    await db.badge.update({
-      where: { id: badgeId },
-      data: {
-        startsAt:      startsAtRaw ? new Date(startsAtRaw) : null,
-        endsAt:        endsAtRaw   ? new Date(endsAtRaw)   : null,
-        showCountdown: formData.get("showCountdown") === "true",
-      },
-    });
+    // Validate dates before persisting
+    if (startsAtRaw && isNaN(new Date(startsAtRaw).getTime())) {
+      return data({ error: "Invalid start date." }, { status: 400 });
+    }
+    if (endsAtRaw && isNaN(new Date(endsAtRaw).getTime())) {
+      return data({ error: "Invalid end date." }, { status: 400 });
+    }
+    try {
+      await db.badge.update({
+        where: { id: badgeId },
+        data: {
+          startsAt:      startsAtRaw ? new Date(startsAtRaw) : null,
+          endsAt:        endsAtRaw   ? new Date(endsAtRaw)   : null,
+          showCountdown: formData.get("showCountdown") === "true",
+        },
+      });
+    } catch {
+      return data({ error: "Failed to save schedule. Please try again." }, { status: 500 });
+    }
     return data({ success: true });
   }
 
@@ -285,16 +338,24 @@ export async function action({ request }) {
     const b = allBadges[swapIdx];
     const aP = a.priority ?? 0;
     const bP = b.priority ?? 0;
-    await Promise.all([
-      db.badge.update({ where: { id: a.id }, data: { priority: bP === aP ? (direction === "up" ? aP + 1 : aP - 1) : bP } }),
-      db.badge.update({ where: { id: b.id }, data: { priority: bP === aP ? (direction === "up" ? bP - 1 : bP + 1) : aP } }),
-    ]);
+    try {
+      await Promise.all([
+        db.badge.update({ where: { id: a.id }, data: { priority: bP === aP ? (direction === "up" ? aP + 1 : aP - 1) : bP } }),
+        db.badge.update({ where: { id: b.id }, data: { priority: bP === aP ? (direction === "up" ? bP - 1 : bP + 1) : aP } }),
+      ]);
+    } catch {
+      return data({ error: "Failed to reorder badges." }, { status: 500 });
+    }
     return data({ success: true });
   }
 
   // default: toggle active
   const active = formData.get("active") === "true";
-  await db.badge.update({ where: { id: badgeId }, data: { active } });
+  try {
+    await db.badge.update({ where: { id: badgeId }, data: { active } });
+  } catch {
+    return data({ error: "Failed to update badge status." }, { status: 500 });
+  }
   return data({ success: true });
 }
 
@@ -486,6 +547,38 @@ const LABEL_SUGGESTIONS = [
     labels: ["Holiday Gift Idea", "Back to School", "Black Friday Deal", "Summer Sale", "Flash Sale"],
   },
 ];
+
+// ── Error boundary for the badge builder ─────────────────────
+class BuilderErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ border: "1px solid #fca5a5", borderRadius: 12, padding: "32px 24px", textAlign: "center", background: "#fff5f5" }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#991b1b", marginBottom: 8 }}>
+            Badge builder encountered an error
+          </div>
+          <div style={{ fontSize: 13, color: "#b91c1c", marginBottom: 16 }}>
+            Your other badges are unaffected. Try refreshing the page.
+          </div>
+          <button
+            onClick={() => this.setState({ hasError: false })}
+            style={{ background: "#000", color: "#fff", border: "none", borderRadius: 6, padding: "8px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // ── CustomBadgeBuilder ───────────────────────────────────────
 const COLOR_PRESETS = [
@@ -684,6 +777,53 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
 
   const [rawImage, setRawImage] = useState(null);
 
+  // ── Unsaved-changes tracking ───────────────────────────────
+  const [isDirty, setIsDirty] = useState(false);
+  const dirtyCheckActive = useRef(false);
+
+  // When editingBadge changes, pause dirty tracking for 150 ms while state
+  // is being populated by the effect below, then re-enable it.
+  useEffect(() => {
+    dirtyCheckActive.current = false;
+    setIsDirty(false);
+    const t = setTimeout(() => { dirtyCheckActive.current = true; }, 150);
+    return () => clearTimeout(t);
+  }, [editingBadge]);
+
+  // Also enable on first mount (new badge mode)
+  useEffect(() => {
+    const t = setTimeout(() => { dirtyCheckActive.current = true; }, 150);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Watch all form fields — any change after grace period marks dirty
+  useEffect(() => {
+    if (!dirtyCheckActive.current) return;
+    setIsDirty(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [label, color, textColor, shape, edgeStyle, size, gradientEnabled, gradientColorEnd,
+      gradientDirection, hoverOnly, hoverDuration, slideIn, slideFrom, scrollingEnabled,
+      scrollSpeed, fontFamily, textTransform, borderWidth, borderColor, shadowStyle,
+      animEffect, iconDataUrl]);
+
+  // Warn on browser navigation when there are unsaved changes
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
+
+  // Reset dirty flag after successful save
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data?.success) {
+      dirtyCheckActive.current = false;
+      setIsDirty(false);
+      setTimeout(() => { dirtyCheckActive.current = true; }, 150);
+    }
+  }, [fetcher.state, fetcher.data]);
+
   // Populate builder state when an existing badge is loaded for editing
   useEffect(() => {
     if (!editingBadge) return;
@@ -729,6 +869,11 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
   const handleImageUpload = useCallback((e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (file.size > 5_000_000) {
+      alert("Image too large — please use an image under 5 MB.");
+      e.target.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (ev) => setRawImage(ev.target.result);
     reader.readAsDataURL(file);
@@ -1507,6 +1652,13 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
       {/* ── CTA — full width ── */}
       <div style={{ marginTop: 24 }}>
 
+        {/* Server error feedback */}
+        {fetcher.state === "idle" && fetcher.data?.error && (
+          <div style={{ marginBottom: 12, padding: "8px 14px", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 6, fontSize: 12, color: "#991b1b", fontWeight: 500 }}>
+            {fetcher.data.error}
+          </div>
+        )}
+
         {/* CTA */}
         <div>
             <button
@@ -1564,7 +1716,10 @@ function CustomBadgeBuilder({ disabled, previewImage, onImageChange, editingBadg
             </button>
             {editingBadge && (
               <button
-                onClick={onEditDone}
+                onClick={() => {
+                  if (isDirty && !window.confirm("You have unsaved changes. Discard them?")) return;
+                  onEditDone();
+                }}
                 style={{
                   marginLeft: 8,
                   background: "transparent",
@@ -2389,9 +2544,12 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit, isFirst, isLast }) 
 
           {scheduleOpen && (
             <div style={{ marginTop: 8, border: "1px solid #e1e3e5", borderRadius: 8, padding: 10 }}>
+              <div style={{ fontSize: 10, color: "#b45309", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 4, padding: "4px 8px", marginBottom: 8 }}>
+                Times are in <strong>UTC</strong>. Your store's local timezone may differ.
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
                 <div>
-                  <div style={{ fontSize: 10, color: "#888", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 4 }}>Start</div>
+                  <div style={{ fontSize: 10, color: "#888", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 4 }}>Start (UTC)</div>
                   <input
                     type="datetime-local"
                     value={schedStartsAt}
@@ -2400,7 +2558,7 @@ function MyBadgeCard({ badge, previewImage, fetcher, onEdit, isFirst, isLast }) 
                   />
                 </div>
                 <div>
-                  <div style={{ fontSize: 10, color: "#888", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 4 }}>End</div>
+                  <div style={{ fontSize: 10, color: "#888", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 4 }}>End (UTC)</div>
                   <input
                     type="datetime-local"
                     value={schedEndsAt}
@@ -2602,8 +2760,7 @@ export default function Dashboard() {
         {syncResult?.success && (
           <Layout.Section>
             <Banner tone="success" title="Inventory synced">
-              Updated {syncResult.synced} LOW_STOCK badge
-              {syncResult.synced !== 1 ? "s" : ""} with live stock data.
+              Updated {syncResult.synced} badge target list{syncResult.synced !== 1 ? "s" : ""} with live data.
             </Banner>
           </Layout.Section>
         )}
@@ -2647,7 +2804,9 @@ export default function Dashboard() {
         {/* Custom badge builder */}
         <Layout.Section>
           <div id="custom-builder" ref={builderRef}>
-            <CustomBadgeBuilder disabled={atLimit && !editingBadge} previewImage={previewImage} onImageChange={setPreviewImage} editingBadge={editingBadge} onEditDone={() => setEditingBadge(null)} />
+            <BuilderErrorBoundary>
+              <CustomBadgeBuilder disabled={atLimit && !editingBadge} previewImage={previewImage} onImageChange={setPreviewImage} editingBadge={editingBadge} onEditDone={() => setEditingBadge(null)} />
+            </BuilderErrorBoundary>
           </div>
         </Layout.Section>
 

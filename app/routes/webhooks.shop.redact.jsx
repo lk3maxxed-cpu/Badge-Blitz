@@ -6,8 +6,7 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 
 export const action = async ({ request }) => {
-  const { shop, topic } = await authenticate.webhook(request);
-  console.log(`Received ${topic} webhook for ${shop}`);
+  const { shop } = await authenticate.webhook(request);
 
   // Belt-and-suspenders: delete any remaining data in case uninstall webhook was missed.
   const shopRecord = await db.shop.findUnique({ where: { shopDomain: shop } });

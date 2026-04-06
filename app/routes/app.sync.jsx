@@ -27,8 +27,7 @@ export async function action({ request }) {
       syncCollectionBadges(admin, shopRecord),
     ]);
     return data({ success: true, synced: lowStockSynced + collectionSynced });
-  } catch (err) {
-    console.error("[Badge Blitz] Manual sync error:", err);
-    return data({ error: "Sync failed. Check server logs." }, { status: 500 });
+  } catch {
+    return data({ error: "Sync failed. Please try again." }, { status: 500 });
   }
 }

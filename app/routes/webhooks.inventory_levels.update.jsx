@@ -7,9 +7,7 @@ import db from "../db.server";
 import { syncLowStockBadges } from "../lib/inventory.server";
 
 export const action = async ({ request }) => {
-  const { shop, payload, admin, topic } = await authenticate.webhook(request);
-
-  console.log(`Received ${topic} webhook for ${shop}`);
+  const { shop, admin } = await authenticate.webhook(request);
 
   if (!admin) {
     // No admin client available — can't query inventory
@@ -20,10 +18,9 @@ export const action = async ({ request }) => {
   if (!shopRecord) return new Response();
 
   try {
-    const { synced } = await syncLowStockBadges(admin, shopRecord);
-    console.log(`[Badge Blitz] Synced ${synced} LOW_STOCK badges for ${shop}`);
-  } catch (err) {
-    console.error(`[Badge Blitz] Inventory sync failed for ${shop}:`, err);
+    await syncLowStockBadges(admin, shopRecord);
+  } catch {
+    // Sync failure is non-fatal — badge data remains from last successful sync
   }
 
   return new Response();
