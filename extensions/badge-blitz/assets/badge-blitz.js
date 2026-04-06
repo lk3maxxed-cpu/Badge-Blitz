@@ -14,8 +14,8 @@
     var styleEl = document.createElement("style");
     styleEl.id = STYLE_ID;
     styleEl.textContent = [
-      "@keyframes bb-marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}",
-      ".badge-blitz-bar__scroll{display:inline-block;white-space:nowrap;animation:bb-marquee var(--bb-scroll-duration,20s) linear infinite}",
+      "@keyframes badge-blitz-marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}",
+      ".badge-blitz-bar__scroll{display:inline-block;white-space:nowrap;animation:badge-blitz-marquee var(--bb-scroll-duration,20s) linear infinite}",
       "@keyframes bb-pulse{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.12)}}",
       "@keyframes bb-pulse-bar{0%,100%{transform:translateY(-50%) scale(1)}50%{transform:translateY(-50%) scale(1.04)}}",
       "@keyframes bb-glow{0%,100%{opacity:1;filter:brightness(1)}50%{opacity:0.85;filter:brightness(1.4)}}",
@@ -198,11 +198,15 @@
   // inside it cannot beat .card__content (sibling, z-index:auto, later in DOM).
   // Injecting into .card__inner (parent of both) puts our overlay in the same
   // stacking context as .card__content so z-index:10 wins cleanly.
+  // Fix 1: PDP — inject into .product-media-container, not the card root.
   function getOverlayParent(card) {
-    return (
-      card.querySelector(".card__inner") ||
-      card
-    );
+    var pdpItem = card.closest && card.closest(".product__media-item");
+    if (pdpItem) {
+      var mc = pdpItem.querySelector(".product-media-container");
+      if (mc) return mc;
+      return pdpItem;
+    }
+    return card.querySelector(".card__inner") || card;
   }
 
   // ── Get product identifier from a card element ────────────────────────────
@@ -369,8 +373,8 @@
       el.style.cssText = [
         "position:absolute",
         "width:" + ld + "px;height:" + ld + "px",
-        "left:" + (badge.positionX != null ? badge.positionX : 12) + "%",
-        "top:"  + (badge.positionY != null ? badge.positionY : 12) + "%",
+        "left:clamp(" + Math.ceil(ld/2) + "px," + (badge.positionX != null ? badge.positionX : 12) + "%,calc(100% - " + Math.ceil(ld/2) + "px))",
+        "top:clamp(" + Math.ceil(ld/2) + "px," + (badge.positionY != null ? badge.positionY : 12) + "%,calc(100% - " + Math.ceil(ld/2) + "px))",
         "transform:translate(-50%,-50%)",
         "background:" + lCol,
         "clip-path:" + STARBURST,
@@ -396,7 +400,8 @@
     var circleSize = Math.round((badge.size || 12) * 0.6);
     el.style.cssText = [
       "position:absolute",
-      "left:" + px + "%;top:" + py + "%",
+      "left:clamp(26px," + px + "%,calc(100% - 26px))",
+      "top:clamp(14px," + py + "%,calc(100% - 14px))",
       "transform:translate(-50%,-50%)",
       "font-size:" + (badge.size || 12) + "px",
       "font-weight:700",
@@ -525,12 +530,44 @@
     });
   }
 
+  // ── PDP badge injection ────────────────────────────────────────────────────
+  // Fix 4: Wrap in requestAnimationFrame so Shopify's media-gallery slider has
+  // finished its own DOM setup before we append our overlay.
+  function injectPDP(badges) {
+    if (!badges || !badges.length) return;
+    var m = window.location.pathname.match(/\/products\/([^/?#]+)/);
+    if (!m) return;
+    var handle = m[1];
+
+    requestAnimationFrame(function () {
+      var containers = document.querySelectorAll(".product-media-container");
+      if (!containers.length) return;
+      containers.forEach(function (container) {
+        if (container.querySelector(".bb-overlay")) return;
+        var parentPos = getComputedStyle(container).position;
+        if (parentPos === "static") container.style.position = "relative";
+        var overlay = document.createElement("div");
+        overlay.className = "bb-overlay";
+        container.appendChild(overlay);
+        badges.forEach(function (badge) {
+          if (!shouldShowBadge(badge, handle)) return;
+          var el = createBadgeElement(badge, container);
+          overlay.appendChild(el);
+        });
+        if (!overlay.children.length) overlay.remove();
+      });
+    });
+  }
+
   // ── Init ──────────────────────────────────────────────────────────────────
   function init() {
     fetchBadges(function (badges) {
       if (!badges.length) return;
 
-      // First pass immediately
+      // PDP injection (product detail page)
+      injectPDP(badges);
+
+      // First pass immediately (collection/listing pages)
       injectBadges(badges);
 
       // Second pass after a short delay — catches themes that render cards async
@@ -538,6 +575,7 @@
 
       // MutationObserver for SPA navigation / infinite scroll / filters
       // Disconnect during injection to prevent our own DOM writes from re-triggering
+      // Fix 5: Disconnect observer 5 s after init — indefinite observation is wasteful
       if (window.MutationObserver) {
         var debounceTimer;
         var observer = new MutationObserver(function () {
@@ -545,10 +583,12 @@
           debounceTimer = setTimeout(function () {
             observer.disconnect();
             injectBadges(badges);
+            injectPDP(badges);
             observer.observe(document.body, { childList: true, subtree: true });
           }, 300);
         });
         observer.observe(document.body, { childList: true, subtree: true });
+        setTimeout(function () { observer.disconnect(); }, 5000);
       }
     });
   }
