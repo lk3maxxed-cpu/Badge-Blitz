@@ -9,7 +9,7 @@ export default function PrivacyPolicy() {
         <div style={styles.header}>
           <div style={styles.logo}>BADGE BLITZ</div>
           <h1 style={styles.title}>Privacy Policy</h1>
-          <p style={styles.date}>Effective date: March 29, 2026</p>
+          <p style={styles.date}>Effective date: April 6, 2026</p>
         </div>
 
         <Section title="1. Overview">
@@ -105,6 +105,7 @@ export default function PrivacyPolicy() {
             <li style={styles.listItem}><strong>Shopify</strong> — authentication, billing, and webhook delivery. Subject to Shopify's Privacy Policy.</li>
             <li style={styles.listItem}><strong>Neon</strong> — database hosting. Subject to Neon's Privacy Policy.</li>
             <li style={styles.listItem}><strong>Railway</strong> — application hosting. Subject to Railway's Privacy Policy.</li>
+            <li style={styles.listItem}><strong>Sentry</strong> — error monitoring. May capture request metadata (URL, error stack traces) when exceptions occur. No personally identifiable merchant data is intentionally captured.</li>
           </ul>
           <p style={styles.bodyText}>No analytics, advertising, or tracking services are used.</p>
         </Section>
