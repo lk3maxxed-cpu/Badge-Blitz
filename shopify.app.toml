@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "e89d9fd3edfe7e45385c0628abd29287"
-name = "badge-blitz-dev"
+name = "Badge Blitz"
 application_url = "https://badge-blitz-production.up.railway.app"
 embedded = true
 
